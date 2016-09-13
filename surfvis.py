@@ -241,9 +241,10 @@ else:
 				immax = scale*plotdata.max()
 				immin = scale*plotdata.min()
 				ax.imshow(plotdata,aspect='auto',clim=(immin,immax),cmap=mycmap)
-				ax.imshow(flagimage,aspect='auto',interpolation='nearest',cmap='spring')
+				ax.imshow(flagimage,aspect='auto',interpolation='nearest')
 			elif len(plotdata)>0:
 				ax.imshow(plotdata,aspect='auto',cmap=mycmap)
+				ax.imshow(flagimage,aspect='auto',interpolation='nearest')
 			else:
 				ax.imshow(((0,0),(0,0)),aspect='auto')
 			

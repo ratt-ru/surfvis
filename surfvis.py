@@ -127,6 +127,8 @@ else:
 	# Make a complete list of SPWs if one isn't provided
 	if myspw == '':
 		myspw = numpy.arange(0,nspw)
+	else:
+		myspw = myspw.split(',')
 
 	fieldname = sourcenames[fieldid]
 

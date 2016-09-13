@@ -1,2 +1,2 @@
 # surfvis
-Create per-baseline time/frequency plots from a Measurement Set
+Create per-baseline time/frequency plots from a Measurement Set. Uses pyrap.

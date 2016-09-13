@@ -1,6 +1,7 @@
 # surfvis
 Create per-baseline time/frequency plots from a Measurement Set. Uses pyrap.
 
+```
 Usage: surfvis.py [options] msname
 
 Options:
@@ -22,3 +23,4 @@ Options:
   --cmap=MYCMAP         Matplotlib colour map to use (default = jet)
   -o FOLDERNAME, --opdir=FOLDERNAME
                         Output folder to store plots (default = msname___plots)
+```

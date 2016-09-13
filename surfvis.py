@@ -84,11 +84,6 @@ anttab.done()
 tt = pyrap.tables.table(msname)
 usedants = numpy.unique(tt.getcol('ANTENNA1'))
 
-# More error trapping
-
-if antenna1 not in usedants and antenna2 == -1:
-	ri('You have requested antenna that is not present in this observation.')
-	sys.exit(-1)
 
 # PRINT SUMMARY
 

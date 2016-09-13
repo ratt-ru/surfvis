@@ -24,3 +24,5 @@ Options:
   -o FOLDERNAME, --opdir=FOLDERNAME
                         Output folder to store plots (default = msname___plots)
 ```
+
+Plotting can be quite slow for large Measurement Sets. Will probably also fail if you have SPWs with different time/freq shapes. Use of the -s switch can generally get around this. Use at own risk, etc.

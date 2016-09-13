@@ -1,7 +1,6 @@
 # Read a Measurement Set and produce per-baseline time-frequency surface plots.
 # ian.heywood@csiro.au 
-# 13.09.16: Re-wrote to make use of TaQL and handle SPWs / DDIDs properly
-# A word of caution: this can be quite slow, because matplotlib and modern radio astronomy
+# 13.09.16: Re-wrote to make use of TaQL and handle SPWs / DDIDs
 
 import matplotlib
 matplotlib.use('Agg')

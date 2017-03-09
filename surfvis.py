@@ -116,7 +116,7 @@ if dolist:
 else:		
 	# Create output folder if it doesn't exist
 	if foldername == '':
-		foldername = msname+'___plots'
+		foldername = msname+'_'+column+'__plots'
 	if os.path.isdir(foldername):
 		print 'Found',foldername
 	else:

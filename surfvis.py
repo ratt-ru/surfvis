@@ -1,6 +1,7 @@
 # Read a Measurement Set and produce per-baseline time-frequency surface plots.
 # ian.heywood@csiro.au 
 # 13.09.16: Re-wrote to make use of TaQL and handle SPWs / DDIDs
+# 22.03.17: Fixed FIELD_ID TaQL bug
 
 import matplotlib
 matplotlib.use('Agg')
@@ -180,7 +181,8 @@ else:
 			print spw,
 			subtab = tt.query(query='ANTENNA1=='+str(baseline[0])
 				+' && ANTENNA2=='+str(baseline[1])
-				+' && DATA_DESC_ID=='+str(spw))
+				+' && DATA_DESC_ID=='+str(spw)
+				+' && FIELD_ID=='+str(fieldid))
 			datacol = subtab.getcol(column)
 			flagcol = subtab.getcol('FLAG')
 			datacols.append(datacol)

@@ -72,6 +72,7 @@ fieldtab.done()
 spwtab = pyrap.tables.table(msname+'/SPECTRAL_WINDOW')
 nspw = len(spwtab)
 spwfreqs = spwtab.getcol('REF_FREQUENCY')
+chanwidth = spwtab.getcol('CHAN_WIDTH')[0][0] # probably needs changing if SPWs have different widths
 nchans = spwtab.getcol('NUM_CHAN')
 spwtab.done()
 
@@ -95,9 +96,9 @@ if dolist:
 		print '     %-6s%-14s%-14s' % (i,sourceids[i],sourcenames[i])
 	print ''
 	gi('     '+msname+'/SPECTRAL_WINDOW')
-	gi('     ROW   CHANS         REF_FREQ[MHz]')
+	gi('     ROW   CHANS         WIDTH[MHz]          REF_FREQ[MHz]')
 	for i in range(0,nspw):
-		print '     %-6s%-14s%-14s' % (i,str(nchans[i]),str(spwfreqs[i]/1e6))
+		print '     %-6s%-14s%-20s%-14s' % (i,str(nchans[i]),str(chanwidth/1e6),str(spwfreqs[i]/1e6))
 	print ''
 	gi('     '+msname+'/ANTENNA')
 	gi('     ROW   NAME          POSITION')

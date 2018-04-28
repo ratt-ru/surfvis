@@ -1,8 +1,4 @@
-# Read a Measurement Set and produce per-baseline time-frequency surface plots.
-# ianh@astro.ox.ac.uk
-# https://github.com/IanHeywood/surfvis
-# 13.09.16: Re-wrote to make use of TaQL and handle SPWs / DDIDs
-# 22.03.17: Fixed FIELD_ID TaQL bug
+#!/usr/bin/env python
 
 import matplotlib
 matplotlib.use('Agg')

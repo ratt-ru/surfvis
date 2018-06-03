@@ -31,7 +31,7 @@ parser.add_option('-p','--plot',dest='plot',help='Set to amp, phase, real or ima
 parser.add_option('-i','--i',dest='antenna1',help='Antenna 1: plot only this antenna',default=-1)
 parser.add_option('-j','--j',dest='antenna2',help='Antenna 2: use with -i to plot a single baseline',default=-1)
 parser.add_option('--noflags',dest='noflags',help='Disable flagged data overlay',action='store_true',default=False)
-parser.add_option('--scale',dest='scale',help='Scale the image peak to this multiple of the per-corr min/max (ignored for phases)',default=1)
+parser.add_option('--scale',dest='scale',help='Scale the image peak to this multiple of the per-corr min/max (default = scale image max to 5 sigma, this parameter is ignored for phase plots)',default=-1)
 parser.add_option('--cmap',dest='mycmap',help='Matplotlib colour map to use (default = jet)',default='jet')
 parser.add_option('-o','--opdir',dest='foldername',help='Output folder to store plots (default = msname___plots)',default='')
 (options,args) = parser.parse_args()
@@ -240,8 +240,13 @@ else:
 				for ytick_i in ax.get_yticklabels():
 					ytick_i.set_visible(False)
 			if plot != 'phase' and len(plotdata)>0:
-				immax = scale*plotdata.max()
-				immin = scale*plotdata.min()
+				if scale != -1:
+					immax = scale*plotdata.max()
+					immin = scale*plotdata.min()
+				else:
+					imstd = numpy.std(plotdata)
+					immax = 5.0*imstd
+					immin = 0.0
 				ax.imshow(plotdata,aspect='auto',clim=(immin,immax),cmap=mycmap)
 				if not noflags:
 					ax.imshow(flagimage,aspect='auto',interpolation='nearest')

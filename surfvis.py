@@ -30,6 +30,7 @@ parser.add_option('-s','--spw',dest='myspw',help='Comma separated list of SPWs t
 parser.add_option('-p','--plot',dest='plot',help='Set to amp, phase, real or imag (default = amp)',default='amp')
 parser.add_option('-i','--i',dest='antenna1',help='Antenna 1: plot only this antenna',default=-1)
 parser.add_option('-j','--j',dest='antenna2',help='Antenna 2: use with -i to plot a single baseline',default=-1)
+parser.add_option('--noflags',dest='noflags',help='Disable flagged data overlay',action='store_true',default=False)
 parser.add_option('--scale',dest='scale',help='Scale the image peak to this multiple of the per-corr min/max (ignored for phases)',default=1)
 parser.add_option('--cmap',dest='mycmap',help='Matplotlib colour map to use (default = jet)',default='jet')
 parser.add_option('-o','--opdir',dest='foldername',help='Output folder to store plots (default = msname___plots)',default='')
@@ -42,6 +43,7 @@ myspw = options.myspw
 plot = options.plot
 antenna1 = int(options.antenna1)
 antenna2 = int(options.antenna2)
+noflags = options.noflags
 scale = float(options.scale)
 mycmap = options.mycmap
 foldername = options.foldername
@@ -241,10 +243,12 @@ else:
 				immax = scale*plotdata.max()
 				immin = scale*plotdata.min()
 				ax.imshow(plotdata,aspect='auto',clim=(immin,immax),cmap=mycmap)
-				ax.imshow(flagimage,aspect='auto',interpolation='nearest')
+				if not noflags:
+					ax.imshow(flagimage,aspect='auto',interpolation='nearest')
 			elif len(plotdata)>0:
 				ax.imshow(plotdata,aspect='auto',cmap=mycmap)
-				ax.imshow(flagimage,aspect='auto',interpolation='nearest')
+				if not noflags:
+					ax.imshow(flagimage,aspect='auto',interpolation='nearest')
 			else:
 				ax.imshow(((0,0),(0,0)),aspect='auto')
 			

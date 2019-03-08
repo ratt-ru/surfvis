@@ -170,7 +170,7 @@ else:
 		blength = (((ap1[0]-ap2[0])**2.0)+((ap1[1]-ap2[1])**2.0)+((ap1[2]-ap1[2])**2.0))**0.5
 		blength = str(round(blength/1000.0,2))
 
-		print 'Plotting baseline:',baseline,'     Unprojected length:',blength,'km'
+		print 'Plotting baseline:',baseline,'     Deprojected length:',blength,'km'
 		
 		# Get the data
 		datacols = []

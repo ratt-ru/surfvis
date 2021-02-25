@@ -178,7 +178,7 @@ else:
 		# Loop over SPWs
 		print('SPW:'),
 		for spw in myspw:
-			print(spw,
+			print(spw,)
 			subtab = tt.query(query='ANTENNA1=='+str(baseline[0])
 				+' && ANTENNA2=='+str(baseline[1])
 				+' && DATA_DESC_ID=='+str(spw)

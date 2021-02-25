@@ -11,11 +11,11 @@ import numpy
 
 
 def gi(message):
-        print '\033[92m'+message+'\033[0m'
+        print('\033[92m'+message+'\033[0m')
 
 
 def ri(message):
-        print '\033[91m'+message+'\033[0m'
+        print('\033[91m'+message+'\033[0m')
 
 
 # COMMAND LINE OPTIONS
@@ -85,29 +85,29 @@ tt = pyrap.tables.table(msname)
 usedants = numpy.unique(tt.getcol('ANTENNA1'))
 
 
-# PRINT SUMMARY
+# print SUMMARY
 
 if dolist:
-	print ''
+	print('')
 	gi('     '+msname+'/FIELD')
 	gi('     ROW   ID            NAME')
 	for i in range(0,len(sourceids)):
-		print '     %-6s%-14s%-14s' % (i,sourceids[i],sourcenames[i])
-	print ''
+		print('     %-6s%-14s%-14s' % (i,sourceids[i],sourcenames[i]))
+	print('')
 	gi('     '+msname+'/SPECTRAL_WINDOW')
 	gi('     ROW   CHANS         WIDTH[MHz]          REF_FREQ[MHz]')
 	for i in range(0,nspw):
-		print '     %-6s%-14s%-20s%-14s' % (i,str(nchans[i]),str(chanwidth/1e6),str(spwfreqs[i]/1e6))
-	print ''
+		print('     %-6s%-14s%-20s%-14s' % (i,str(nchans[i]),str(chanwidth/1e6),str(spwfreqs[i]/1e6)))
+	print('')
 	gi('     '+msname+'/ANTENNA')
 	gi('     ROW   NAME          POSITION')
 	for i in range(0,nant):
 		if i in usedants:
-			print '     %-6s%-14s%-14s' % (i,(antnames[i]),str(antpos[i]))
+			print('     %-6s%-14s%-14s' % (i,(antnames[i]),str(antpos[i])))
 		else:
 			ri('     %-6s%-14s%-14s' % (i,(antnames[i]),str(antpos[i])))
 		
-	print ''
+	print('')
 	tt.done()
 
 
@@ -119,9 +119,9 @@ else:
 	if foldername == '':
 		foldername = msname+'_'+column+'__plots'
 	if os.path.isdir(foldername):
-		print 'Found',foldername
+		print('Found',foldername)
 	else:
-		print 'Creating',foldername
+		print('Creating',foldername)
 		os.system('mkdir '+foldername)
 
 	# Make a complete list of SPWs if one isn't provided
@@ -170,15 +170,15 @@ else:
 		blength = (((ap1[0]-ap2[0])**2.0)+((ap1[1]-ap2[1])**2.0)+((ap1[2]-ap1[2])**2.0))**0.5
 		blength = str(round(blength/1000.0,2))
 
-		print 'Plotting baseline:',baseline,'     Deprojected length:',blength,'km'
+		print('Plotting baseline:',baseline,'     Deprojected length:',blength,'km')
 		
 		# Get the data
 		datacols = []
 		flagcols = []
 		# Loop over SPWs
-		print 'SPW:',
+		print('SPW:'),
 		for spw in myspw:
-			print spw,
+			print(spw,
 			subtab = tt.query(query='ANTENNA1=='+str(baseline[0])
 				+' && ANTENNA2=='+str(baseline[1])
 				+' && DATA_DESC_ID=='+str(spw)
@@ -187,7 +187,7 @@ else:
 			flagcol = subtab.getcol('FLAG')
 			datacols.append(datacol)
 			flagcols.append(flagcol)
-		print ''
+		print('')
 		# Reshape the data
 		baselinedata = datacols[0]
 		flagdata = flagcols[0]
@@ -259,7 +259,7 @@ else:
 			
 			ax.set_title('Corr product '+str(k))
 			
-			print '    Corr product:',k,'      Data min,max:',plotdata.min(),plotdata.max()
+			print('    Corr product:',k,'      Data min,max:',plotdata.min(),plotdata.max())
 
 		for o in fig.findobj(matplotlib.text.Text):	
 			o.set_fontsize('11')

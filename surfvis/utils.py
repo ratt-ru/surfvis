@@ -86,7 +86,7 @@ def _surf(p, q, data, weight, flag, basename, products='riap'):
     # histogram real and imaginary parts
     for c in range(ncorr):
         datac = dataw[:, :, c]
-        flagc = flagc[:, :, c]
+        flagc = flag[:, :, c]
         fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(5,5))
         ax[0].hist(datac[~flagc].real, bins=25)
         ax[0].set_title(f"real")
@@ -110,17 +110,17 @@ def _surf(p, q, data, weight, flag, basename, products='riap'):
         weightnu = np.sum(weight, axis=0)
         datanu = np.where(weightnu > 0.0, datanu/weightnu, np.nan)
 
-        fig, ax = plt.subplots(nrows=ncorr, ncols=1, figsize=(ncorr*5*ratio,5))
+        fig, ax = plt.subplots(nrows=ncorr, ncols=1, figsize=(5,5))
         nu = np.arange(nchan)
         if ncorr == 1:
             ax = [ax]
 
         for c in range(ncorr):
-            ax[c].errorbar(nu, datanu[:, c], np.sqrt(1.0/weightnu[:, c]), fmt='xr')
+            ax[c].errorbar(nu, np.abs(datanu[:, c]), np.sqrt(1.0/weightnu[:, c]), fmt='xr')
             ax[c].set_title(f'corr_{c}')
 
         fig.tight_layout(w_pad=0.98,h_pad=0.98,rect=[0.02,0.02,0.95,0.95])
-        plt.savefig(foldername + f"lightcurve.png", dpi=500, bbox_inches='tight')
+        plt.savefig(foldername + f"freq_profile.png", dpi=500, bbox_inches='tight')
         plt.close(fig)
 
 

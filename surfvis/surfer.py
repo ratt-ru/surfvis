@@ -18,18 +18,21 @@ def create_parser():
 	parser = OptionParser(usage='%prog [options] msname')
 	parser.add_option('-d','--dcol', help='Data column to plot (default = DATA)', default='DATA')
 	parser.add_option('-w','--wcol', help='Weight column to plot (default = WEIGHT)', default='WEIGHT')
-	parser.add_option('-p','--products', help='a=amplitude, p=phase, r=real and i=imag (default = apir)',
+	parser.add_option('-p','--products', help='a=amplitude, p=phase (default = ap)',
 					  default='ap')
-	parser.add_option('-o','--outdir', help='Output folder to store plots (default = msname___plots)',
+	parser.add_option('-o','--outdir', help='Output folder to store plots',
 					  default='')
 	parser.add_option('-n', '--ncpu', default=4, type=int,
 					  help='Number of processes to spawn')
+	parser.add_option('-g', '--gains', default=None, help='Path to qcal gain table')
 	return parser
 
 def main():
 	(options,args) = create_parser().parse_args()
 
 	foldername = options.outdir.rstrip('/')
+	if not os.path.isdir(foldername):
+		os.system('mkdir '+ foldername)
 
 	# Some error trapping
 	if len(args) != 1:
@@ -71,11 +74,11 @@ def main():
 	ants = np.unique(ms.getcol('ANTENNA1'))
 
 	for ifield in fields:
-		if not os.path.isdir(options.outdir + f'/field{ifield}'):
+		if not os.path.isdir(foldername + f'/field{ifield}'):
 			os.system('mkdir '+ foldername + f'/field{ifield}')
 
 		for iscan in scans:
-			if not os.path.isdir(options.outdir + f'/field{ifield}' + f'/scan{iscan}'):
+			if not os.path.isdir(foldername + f'/field{ifield}' + f'/scan{iscan}'):
 				os.system('mkdir '+ foldername + f'/field{ifield}' + f'/scan{iscan}')
 			basename = foldername + f'/field{ifield}' + f'/scan{iscan}'
 

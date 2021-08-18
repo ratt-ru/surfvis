@@ -8,6 +8,7 @@ requirements = [
                 'matplotlib',
                 'python-casacore',
                 'argparse',
+                'ipython',
 
                 "dask-ms[xarray, zarr]"
                 "@git+https://github.com/ska-sa/dask-ms.git"

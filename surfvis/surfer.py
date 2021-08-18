@@ -12,19 +12,20 @@ import sys
 import numpy as np
 import itertools
 from surfvis.utils import surf
+from daskms.experimental.zarr import xds_from_zarr
 
 # COMMAND LINE OPTIONS
 def create_parser():
 	parser = OptionParser(usage='%prog [options] msname')
-	parser.add_option('-d','--dcol', help='Data column to plot (default = DATA)', default='DATA')
-	parser.add_option('-w','--wcol', help='Weight column to plot (default = WEIGHT)', default='WEIGHT')
-	parser.add_option('-p','--products', help='a=amplitude, p=phase (default = ap)',
-					  default='ap')
+	parser.add_option('-d','--dcol', help='Data column (default = DATA)', default='DATA')
+	parser.add_option('-w','--wcol', help='Weight column (default = WEIGHT_SPECTRUM)', default='WEIGHT_SPECTRUM')
+	parser.add_option('-r', '--rcol', help='Residual column (default = RESIDUAL)', default='RESIDUAL')
+	parser.add_option('-f', '--fcol', help='Flag column (default = FLAG)', default='FLAG')
 	parser.add_option('-o','--outdir', help='Output folder to store plots',
 					  default='')
 	parser.add_option('-n', '--ncpu', default=4, type=int,
 					  help='Number of processes to spawn')
-	parser.add_option('-g', '--gains', default=None, help='Path to qcal gain table')
+	parser.add_option('-g', '--gains', help='Path to qcal gain table')
 	return parser
 
 def main():
@@ -41,27 +42,29 @@ def main():
 	else:
 		msname = args[0].rstrip('/')
 
+	# gains partitioned by scan
+	G = xds_from_zarr(options.gains)
 
 	# MEASUREMENT SET INFO
 
-	ddtab =table(msname+'/DATA_DESCRIPTION')
+	ddtab =table(msname+'::DATA_DESCRIPTION')
 	# pols = ddtab.getcol('POLARIZATION_ID')
 	spw = ddtab.getcol('SPECTRAL_WINDOW_ID')[0]
 	ddtab.done()
 
-	fieldtab = table(msname+'/FIELD')
+	fieldtab = table(msname+'::FIELD')
 	sourceids = fieldtab.getcol('SOURCE_ID')
 	sourcenames = fieldtab.getcol('NAME')
 	fieldtab.done()
 
-	spwtab = table(msname+'/SPECTRAL_WINDOW')
+	spwtab = table(msname+'::SPECTRAL_WINDOW')
 	nspw = len(spwtab)
 	spwfreqs = spwtab.getcol('REF_FREQUENCY')
 	chanwidth = spwtab.getcol('CHAN_WIDTH')[0][0] # probably needs changing if SPWs have different widths
 	nchans = spwtab.getcol('NUM_CHAN')
 	spwtab.done()
 
-	anttab = table(msname+'/ANTENNA')
+	anttab = table(msname+'::ANTENNA')
 	nant = len(anttab)
 	antpos = anttab.getcol('POSITION')
 	antnames = anttab.getcol('NAME')
@@ -73,15 +76,19 @@ def main():
 	scans = np.unique(ms.getcol('SCAN_NUMBER'))
 	ants = np.unique(ms.getcol('ANTENNA1'))
 
-	for ifield in fields:
-		if not os.path.isdir(foldername + f'/field{ifield}'):
-			os.system('mkdir '+ foldername + f'/field{ifield}')
+	for field in fields:
+		if not os.path.isdir(foldername + f'/field{field}'):
+			os.system('mkdir '+ foldername + f'/field{field}')
 
-		for iscan in scans:
-			if not os.path.isdir(foldername + f'/field{ifield}' + f'/scan{iscan}'):
-				os.system('mkdir '+ foldername + f'/field{ifield}' + f'/scan{iscan}')
-			basename = foldername + f'/field{ifield}' + f'/scan{iscan}'
+		chi2_dof_field = np.zeros((len(scans), nant, nant))
+		for iscan, scan in enumerate(scans):
+			basename = foldername + f'/field{field}' + f'/scan{scan}'
+			if not os.path.isdir(basename):
+				os.system('mkdir '+ basename)
 
+			for g in G:
+				if g.SCAN_NUMBER == scan:
+					gain = g.gains.values
 
 			wsums = np.zeros((nant, nant))
 			chi2_dof = np.zeros((nant, nant))
@@ -93,21 +100,25 @@ def main():
 					subtab = ms.query(query='ANTENNA1=='+str(p)
 										+' && ANTENNA2=='+str(q)
 										+' && DATA_DESC_ID=='+str(spw)
-										+' && FIELD_ID=='+str(ifield)
-										+' && SCAN_NUMBER=='+str(iscan))
+										+' && FIELD_ID=='+str(field)
+										+' && SCAN_NUMBER=='+str(scan))
 					data = subtab.getcol(options.dcol)
+					resid = subtab.getcol(options.rcol)
 					weight = subtab.getcol(options.wcol)
-					flag = subtab.getcol('FLAG')
+					flag = subtab.getcol(options.fcol)
 
-					future = executor.submit(surf, p, q, data, weight, flag,
-											 basename, options.products)
+					gp = gain[:, :, p, 0]
+					gq = gain[:, :, q, 0]
+
+					future = executor.submit(surf, p, q, gp, gq, data, resid,
+											 weight, flag, basename)
 					futures.append(future)
-					# print(f'Submitted {str(p)} {str(q)}')
 
 				for f in cf.as_completed(futures):
 					p, q, chi2, wsum = f.result()
 
-					#chi2, p, q = _surf(p, q, data, weight, flag, basename, products='riap')
+					chi2_dof_field[iscan, p, q] = chi2
+					chi2_dof_field[iscan, q, p] = chi2
 
 					chi2_dof[p, q] = chi2
 					chi2_dof[q, p] = chi2
@@ -115,16 +126,33 @@ def main():
 					wsums[q, p] = wsum
 					print(f'Completed {str(p)} {str(q)}')
 
-			plt.figure(iscan, figsize=(5,5))
+			plt.figure(scan, figsize=(5,5))
 			plt.imshow(chi2_dof, cmap='inferno', interpolation=None)
 			plt.colorbar()
 			plt.title('chi2dof')
 			plt.savefig(basename + '/chi2dof.png', dpi=500)
 			plt.close()
 
-			plt.figure(iscan, figsize=(5,5))
+			plt.figure(scan, figsize=(5,5))
 			plt.imshow(wsums, cmap='inferno', interpolation=None)
 			plt.colorbar()
 			plt.title('wsum')
 			plt.savefig(basename + '/wsum.png', dpi=500)
 			plt.close()
+
+		chi2_dof_mean = np.nanmean(chi2_dof_field, axis=0)
+		chi2_dof_std = np.nanstd(chi2_dof_field, axis=0)
+
+		plt.figure(field, figsize=(5,5))
+		plt.imshow(chi2_dof_mean, cmap='inferno', interpolation=None)
+		plt.colorbar()
+		plt.title('mean chi2dof')
+		plt.savefig(basename.rstrip(f'/scan{scan}') + '/chi2dof_mean.png', dpi=500)
+		plt.close()
+
+		plt.figure(field, figsize=(5,5))
+		plt.imshow(chi2_dof_std, cmap='inferno', interpolation=None)
+		plt.colorbar()
+		plt.title('std chi2dof')
+		plt.savefig(basename.rstrip(f'/scan{scan}') + '/chi2dof_std.png', dpi=500)
+		plt.close()

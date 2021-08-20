@@ -7,6 +7,8 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from numba import njit
+import dask.array as da
 
 def surf(p, q, gp, gq, data, resid, weight, flag, basename):
     """
@@ -19,254 +21,76 @@ def surf(p, q, gp, gq, data, resid, weight, flag, basename):
         raise StandardError("Error occurred. Original traceback "
                             "is\n%s\n" % traceback_str)
 
-def _surf(p, q, gp, gq, data, resid, weight, flag, basename):
-    # per baseline output folder
-    foldername = basename + f'/baseline_{str(p)}_{str(q)}/'
-    # test if dir exists
-    if not os.path.isdir(foldername):
-        os.system('mkdir '+foldername)
-
-
-    ntime, nchan, ncorr = data.shape
-
-
-    # we only do diagonals for now
-    if ncorr > 1:
-        plotcorrs = (0, -1)
-        ncorr = len(plotcorrs)
-    else:
-        plotcorrs = (0,)
-
-    # plot the raw data phases and amplitudes (unflagged)
-    fig, ax = plt.subplots(nrows=ncorr, ncols=1)
-
-    if ncorr == 1:
-        ax = [ax]
-
-    for c in plotcorrs:
-        im = ax[c].imshow(np.abs(data[:, :, c]), cmap='inferno', interpolation=None)
-        ax[c].set_title(f"Corr: {c}")
-        ax[c].axis('off')
-
-        divider = make_axes_locatable(ax[c])
-        cax = divider.append_axes("bottom", size="5%", pad=0.01)
-        cb = fig.colorbar(im, cax=cax, orientation="horizontal")
-        cb.outline.set_visible(False)
-        # cb.ax.tick_params(length=0.1, width=0.1, labelsize=1.0, pad=0.1)
-
-    plt.savefig(foldername + "data_abs.png",
-                dpi=500, bbox_inches='tight')
-
-    plt.close(fig)
-
-    fig, ax = plt.subplots(nrows=ncorr, ncols=1)
-
-    if ncorr == 1:
-        ax = [ax]
-
-    for c in plotcorrs:
-        im = ax[c].imshow(np.angle(data[:, :, c]), cmap='inferno', interpolation=None)
-        ax[c].set_title(f"Corr: {c}")
-        ax[c].axis('off')
-
-        divider = make_axes_locatable(ax[c])
-        cax = divider.append_axes("bottom", size="10%", pad=0.01)
-        cb = fig.colorbar(im, cax=cax, orientation="horizontal")
-        cb.outline.set_visible(False)
-        # cb.ax.tick_params(length=0.1, width=0.1, labelsize=1.0, pad=0.1)
-
-    plt.savefig(foldername + "data_phase.png",
-                dpi=500, bbox_inches='tight')
-
-    plt.close(fig)
-
-    # if it's an autocorrelation we also plot the corrected data
-    # amplitude ignoring flags
-    if p == q:
-        fig, ax = plt.subplots(nrows=ncorr, ncols=1)
-
-        if ncorr == 1:
-            ax = [ax]
-
-        for c in plotcorrs:
-            datac = data[:, :, c]/(gp[:, :, c] * gq[:, :, c].conj())
-            im = ax[c].imshow(np.abs(datac), cmap='inferno', interpolation=None)
-            ax[c].set_title(f"Corr: {c}")
-            ax[c].axis('off')
-
-            divider = make_axes_locatable(ax[c])
-            cax = divider.append_axes("bottom", size="10%", pad=0.01)
-            cb = fig.colorbar(im, cax=cax, orientation="horizontal")
-            cb.outline.set_visible(False)
-            # cb.ax.tick_params(length=0.1, width=0.1, labelsize=1.0, pad=0.1)
-
-        plt.savefig(foldername + "corrected_data_abs.png",
-                    dpi=500, bbox_inches='tight')
-        plt.close(fig)
-
-    # data with flags applied
-    data[flag] = np.nan
-    fig, ax = plt.subplots(nrows=ncorr, ncols=1)
-
-    if ncorr == 1:
-        ax = [ax]
-
-    for c in plotcorrs:
-        im = ax[c].imshow(np.abs(data[:, :, c]), cmap='inferno', interpolation=None)
-        ax[c].set_title(f"Corr: {c}")
-        ax[c].axis('off')
-
-        divider = make_axes_locatable(ax[c])
-        cax = divider.append_axes("bottom", size="10%", pad=0.01)
-        cb = fig.colorbar(im, cax=cax, orientation="horizontal")
-        cb.outline.set_visible(False)
-        # cb.ax.tick_params(length=0.1, width=0.1, labelsize=1.0, pad=0.1)
-
-    plt.savefig(foldername + "flagged_data_abs.png",
-                dpi=500, bbox_inches='tight')
-
-    plt.close(fig)
-
-    fig, ax = plt.subplots(nrows=ncorr, ncols=1)
-
-    if ncorr == 1:
-        ax = [ax]
-
-    for c in plotcorrs:
-        im = ax[c].imshow(np.angle(data[:, :, c]), cmap='inferno', interpolation=None)
-        ax[c].set_title(f"Corr: {c}")
-        ax[c].axis('off')
-
-        divider = make_axes_locatable(ax[c])
-        cax = divider.append_axes("bottom", size="10%", pad=0.01)
-        cb = fig.colorbar(im, cax=cax, orientation="horizontal")
-        cb.outline.set_visible(False)
-        # cb.ax.tick_params(length=0.1, width=0.1, labelsize=1.0, pad=0.1)
-
-    plt.savefig(foldername + "flagged_data_phase.png",
-                dpi=500, bbox_inches='tight')
-
-    plt.close(fig)
-
-
-    # residuals
-    resid *= np.sqrt(weight)
-    resid[flag] = np.nan
-
-    # amplitude and phase
-    fig, ax = plt.subplots(nrows=ncorr, ncols=1)
-
-    if ncorr == 1:
-        ax = [ax]
-
-    for c in plotcorrs:
-        im = ax[c].imshow(np.abs(resid[:, :, c]), cmap='inferno', interpolation=None)
-        ax[c].set_title(f"Corr: {c}")
-        ax[c].axis('off')
-
-        divider = make_axes_locatable(ax[c])
-        cax = divider.append_axes("bottom", size="10%", pad=0.01)
-        cb = fig.colorbar(im, cax=cax, orientation="horizontal")
-        cb.outline.set_visible(False)
-        # cb.ax.tick_params(length=0.1, width=0.1, labelsize=1.0, pad=0.1)
-
-    plt.savefig(foldername + "resid_abs.png",
-                dpi=500, bbox_inches='tight')
-
-    plt.close(fig)
-
-    fig, ax = plt.subplots(nrows=ncorr, ncols=1)
-
-    if ncorr == 1:
-        ax = [ax]
-
-    for c in plotcorrs:
-        im = ax[c].imshow(np.angle(resid[:, :, c]), cmap='inferno', interpolation=None)
-        ax[c].set_title(f"Corr: {c}")
-        ax[c].axis('off')
-
-        divider = make_axes_locatable(ax[c])
-        cax = divider.append_axes("bottom", size="10%", pad=0.01)
-        cb = fig.colorbar(im, cax=cax, orientation="horizontal")
-        cb.outline.set_visible(False)
-        # cb.ax.tick_params(length=0.1, width=0.1, labelsize=1.0, pad=0.1)
-
-    plt.savefig(foldername + "resid_phase.png",
-                dpi=500, bbox_inches='tight')
-
-    plt.close(fig)
-
-    # histogram real and imaginary parts
-    for c in plotcorrs:
-        residc = resid[:, :, c]
-        flagc = flag[:, :, c]
-        fig, ax = plt.subplots(nrows=1, ncols=2)
-        ax[0].hist(residc[~flagc].real, bins=25)
-        ax[0].set_title(f"real")
-        # ax[0].axis('off')
-
-        ax[1].hist(residc[~flagc].imag, bins=25)
-        ax[1].set_title(f"imag")
-        # ax[1].axis('off')
-
-        plt.savefig(foldername + f"hist_corr{c}.png", dpi=500, bbox_inches='tight')
-        plt.close(fig)
-
-    if p == q:
-        chi2_dof = np.nan  # spoils the plot if we don't do this
-    else:
-        chi2 = np.vdot(resid[~flag], resid[~flag]).real
-        N = np.sum(~flag)
-        if N > 0:
-            chi2_dof = chi2/N
-        else:
-            chi2_dof = np.nan
-    wsum = np.sum(weight[~flag])
-
-    # plot gain in autocorr folder
-    if p == q:
-        fig, ax = plt.subplots(nrows=ncorr, ncols=1)
-
-        if ncorr == 1:
-            ax = [ax]
-
-        for c in plotcorrs:
-            im = ax[c].imshow(np.abs(gp[:, :, c]), cmap='inferno', interpolation=None)
-            ax[c].set_title(f"Corr: {c}")
-            ax[c].axis('off')
-
-            divider = make_axes_locatable(ax[c])
-            cax = divider.append_axes("bottom", size="10%", pad=0.01)
-            cb = fig.colorbar(im, cax=cax, orientation="horizontal")
-            cb.outline.set_visible(False)
-            # cb.ax.tick_params(length=0.1, width=0.1, labelsize=1.0, pad=0.1)
-
-        plt.savefig(foldername + "gain_abs.png",
-                    dpi=500, bbox_inches='tight')
-        plt.close(fig)
-
-        fig, ax = plt.subplots(nrows=ncorr, ncols=1)
-
-        if ncorr == 1:
-            ax = [ax]
-
-        for c in plotcorrs:
-            im = ax[c].imshow(np.angle(gp[:, :, c]), cmap='inferno', interpolation=None)
-            ax[c].set_title(f"Corr: {c}")
-            ax[c].axis('off')
-
-            divider = make_axes_locatable(ax[c])
-            cax = divider.append_axes("bottom", size="10%", pad=0.01)
-            cb = fig.colorbar(im, cax=cax, orientation="horizontal")
-            cb.outline.set_visible(False)
-            # cb.ax.tick_params(length=0.1, width=0.1, labelsize=1.0, pad=0.1)
-
-        plt.savefig(foldername + "gain_phase.png",
-                    dpi=500, bbox_inches='tight')
-        plt.close(fig)
-
-
-    return p, q, chi2_dof, wsum
-
+def chisq(resid, weight, flag, ant1, ant2,
+          tbin_idx, tbin_counts, fbin_idx, fbin_counts):
+
+    nant = da.maximum(ant1.max(), ant2.max()).compute() + 1
+    res = da.blockwise(_chisq, 'tfcpq2',
+                       resid, 'tfc',
+                       weight, 'tfc',
+                       flag, 'tfc',
+                       ant1, 't',
+                       ant2, 't',
+                       tbin_idx, 't',
+                       tbin_counts, 't',
+                       fbin_idx, 'f',
+                       fbin_counts, 'f',
+                       align_arrays=False,
+                       dtype=np.float64,
+                       adjust_chunks={'t': tbin_idx.chunks[0],
+                                      'f': fbin_idx.chunks[0]},
+                       new_axes={'p': nant, 'q': nant, '2': 2})
+    return res
+
+
+@njit(fastmath=True, nogil=True)
+def _chisq(resid, weight, flag, ant1, ant2,
+           tbin_idx, tbin_counts, fbin_idx, fbin_counts):
+    nrow, nchan, ncorr = resid.shape
+
+    nto = tbin_idx.size
+    nfo = fbin_idx.size
+    uant1 = np.unique(ant1)
+    uant2 = np.unique(ant2)
+    nant = np.maximum(uant1.max(), uant2.max()) + 1
+
+    # init output array
+    out = np.zeros((nto, nfo, ncorr, nant, nant, 2), dtype=np.float64)
+
+    # account for chunk indexing
+    tbin_idx2 = tbin_idx - tbin_idx.min()
+    fbin_idx2 = fbin_idx - fbin_idx.min()
+    for t in range(nto):
+        rowi = tbin_idx2[t]
+        rowf = tbin_idx2[t] + tbin_counts[t]
+        residr = resid[rowi:rowf]
+        weightr = weight[rowi:rowf]
+        flagr = flag[rowi:rowf]
+        ant1r = ant1[rowi:rowf]
+        ant2r = ant2[rowi:rowf]
+        for f in range(nfo):
+            chani = fbin_idx2[f]
+            chanf = fbin_idx2[f] + fbin_counts[f]
+            residrf = residr[:, chani:chanf]
+            weightrf = weightr[:, chani:chanf]
+            flagrf = flagr[:, chani:chanf]
+            for c in range(ncorr):
+                residrfc = residrf[:, :, c]
+                weightrfc = weightrf[:, :, c]
+                flagrfc = flagrf[:, :, c]
+                for p in uant1:
+                    Ip = ant1r == p
+                    for q in uant2:
+                        Iq = ant2r == q
+                        Ipq = Ip & Iq
+                        R = residrfc[Ipq].ravel()
+                        W = weightrfc[Ipq].ravel()
+                        F = flagrfc[Ipq].ravel()
+                        for i in range(R.size):
+                            if not F[i]:
+                                out[t, f, c, p, q, 0] += (np.conj(R[i]) * W[i] * R[i]).real
+                                out[t, f, c, p, q, 1] += 1.0
+
+    return out
 
 

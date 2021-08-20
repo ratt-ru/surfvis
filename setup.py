@@ -9,6 +9,7 @@ requirements = [
                 'python-casacore',
                 'argparse',
                 'ipython',
+                'codex-africanus[dask]',
 
                 "dask-ms[xarray, zarr]"
                 "@git+https://github.com/ska-sa/dask-ms.git"

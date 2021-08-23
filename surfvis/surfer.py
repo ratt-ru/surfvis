@@ -45,6 +45,10 @@ def main():
 	if options.dataout == '':
 		options.dataout = os.getcwd() + '/chi2'
 
+	if os.path.isdir(options.dataout):
+		print(f"Removing existing {options.dataout} folder")
+		os.system(f"rm -r {options.dataout}")
+
 	# Some error trapping
 	if len(args) != 1:
 		print('Please specify a single Measurement Set to plot.')
@@ -126,8 +130,8 @@ def main():
 		scan = ds.SCAN_NUMBER
 
 		tmp = chisq(resid, weight, flag, ant1, ant2,
-				  rbin_idx[i], rbin_counts[i],
-				  fbin_idx[i], fbin_counts[i])
+				    rbin_idx[i], rbin_counts[i],
+				    fbin_idx[i], fbin_counts[i])
 
 		d = xr.Dataset(
 			data_vars={'data': (('time', 'freq', 'corr', 'p', 'q', '2'), tmp),
@@ -177,6 +181,9 @@ def main():
 
 			ntime, nfreq, ncorr, _, _ = chi2.shape
 			basename = foldername + f'/field{field}' + f'/spw{spw}'+ f'/scan{scan}/'
+			if len(os.listdir(basename)):
+				print(f"Removig contents of {basename} folder")
+				os.system(f'rm {basename}')
 			for t in range(ntime):
 				for f in range(nfreq):
 					for c in range(ncorr):

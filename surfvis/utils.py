@@ -22,7 +22,7 @@ def surf(p, q, gp, gq, data, resid, weight, flag, basename):
                             "is\n%s\n" % traceback_str)
 
 def chisq(resid, weight, flag, ant1, ant2,
-          tbin_idx, tbin_counts, fbin_idx, fbin_counts):
+          rbin_idx, rbin_counts, fbin_idx, fbin_counts):
 
     nant = da.maximum(ant1.max(), ant2.max()).compute() + 1
     res = da.blockwise(_chisq, 'tfcpq2',
@@ -31,13 +31,13 @@ def chisq(resid, weight, flag, ant1, ant2,
                        flag, 'tfc',
                        ant1, 't',
                        ant2, 't',
-                       tbin_idx, 't',
-                       tbin_counts, 't',
+                       rbin_idx, 't',
+                       rbin_counts, 't',
                        fbin_idx, 'f',
                        fbin_counts, 'f',
                        align_arrays=False,
                        dtype=np.float64,
-                       adjust_chunks={'t': tbin_idx.chunks[0],
+                       adjust_chunks={'t': rbin_idx.chunks[0],
                                       'f': fbin_idx.chunks[0]},
                        new_axes={'p': nant, 'q': nant, '2': 2})
     return res
@@ -45,10 +45,10 @@ def chisq(resid, weight, flag, ant1, ant2,
 
 @njit(fastmath=True, nogil=True)
 def _chisq(resid, weight, flag, ant1, ant2,
-           tbin_idx, tbin_counts, fbin_idx, fbin_counts):
+           rbin_idx, rbin_counts, fbin_idx, fbin_counts):
     nrow, nchan, ncorr = resid.shape
 
-    nto = tbin_idx.size
+    nto = rbin_idx.size
     nfo = fbin_idx.size
     uant1 = np.unique(ant1)
     uant2 = np.unique(ant2)
@@ -58,11 +58,11 @@ def _chisq(resid, weight, flag, ant1, ant2,
     out = np.zeros((nto, nfo, ncorr, nant, nant, 2), dtype=np.float64)
 
     # account for chunk indexing
-    tbin_idx2 = tbin_idx - tbin_idx.min()
+    rbin_idx2 = rbin_idx - rbin_idx.min()
     fbin_idx2 = fbin_idx - fbin_idx.min()
     for t in range(nto):
-        rowi = tbin_idx2[t]
-        rowf = tbin_idx2[t] + tbin_counts[t]
+        rowi = rbin_idx2[t]
+        rowf = rbin_idx2[t] + rbin_counts[t]
         residr = resid[rowi:rowf]
         weightr = weight[rowi:rowf]
         flagr = flag[rowi:rowf]

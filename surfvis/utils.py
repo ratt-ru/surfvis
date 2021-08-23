@@ -87,9 +87,10 @@ def _chisq(resid, weight, flag, ant1, ant2,
                         W = weightrfc[Ipq].ravel()
                         F = flagrfc[Ipq].ravel()
                         for i in range(R.size):
-                            if not F[i]:
+                            if not F[i] and p != q:
                                 out[t, f, c, p, q, 0] += (np.conj(R[i]) * W[i] * R[i]).real
                                 out[t, f, c, p, q, 1] += 1.0
+                        out[t, f, c, q, p] = out[t, f, c, p, q]
 
     return out
 

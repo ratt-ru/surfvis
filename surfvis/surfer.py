@@ -73,8 +73,9 @@ def main():
 		time = ds.TIME.values
 		ut, counts = np.unique(time, return_counts=True)
 		if options.ntimes in [0, -1]:
-			options.ntimes = ut.size
-		utpc = options.ntimes
+			utpc = ut.size
+		else:
+			utpc = options.ntimes
 		row_chunks = [np.sum(counts[i:i+utpc])
                  	  for i in range(0, ut.size, utpc)]
 
@@ -110,6 +111,7 @@ def main():
 					  group_cols=['FIELD_ID', 'DATA_DESC_ID', 'SCAN_NUMBER'])
 
 	out_ds = []
+	idts = []
 	for i, ds in enumerate(xds):
 		resid = ds.get(options.rcol).data
 		weight = ds.get(options.wcol).data
@@ -147,117 +149,105 @@ def main():
 			# 		'corr': (('corr'), np.arange(ncorr))}
 		)
 
-		out_ds.append(xds_to_zarr(d, options.dataout))
+		idt = f'::F{ds.FIELD_ID}_D{ds.DATA_DESC_ID}_S{ds.SCAN_NUMBER}'
+		out_ds.append(xds_to_zarr(d, options.dataout + idt))
+		idts.append(idt)
 
 
 	with ProgressBar():
 		dask.compute(out_ds)
 
-	xds = xds_from_zarr(options.dataout)
-
+	# primitive plotting
 	if options.imagesout is not None:
-
 		foldername = options.imagesout.rstrip('/')
 		if not os.path.isdir(foldername):
 				os.system('mkdir '+ foldername)
 
-		for ds in xds:
-			field = ds.FIELD_ID
-			if not os.path.isdir(foldername + f'/field{field}'):
-				os.system('mkdir '+ foldername + f'/field{field}')
+		for idt in idts:
+			xds = xds_from_zarr(options.dataout + idt)
+			for ds in xds:
+				field = ds.FIELD_ID
+				if not os.path.isdir(foldername + f'/field{field}'):
+					os.system('mkdir '+ foldername + f'/field{field}')
 
-			spw = ds.DATA_DESC_ID
-			if not os.path.isdir(foldername + f'/field{field}' + f'/spw{spw}'):
-				os.system('mkdir '+ foldername + f'/field{field}' + f'/spw{spw}')
+				spw = ds.DATA_DESC_ID
+				if not os.path.isdir(foldername + f'/field{field}' + f'/spw{spw}'):
+					os.system('mkdir '+ foldername + f'/field{field}' + f'/spw{spw}')
 
-			scan = ds.SCAN_NUMBER
-			if not os.path.isdir(foldername + f'/field{field}' + f'/spw{spw}' + f'/scan{scan}'):
-				os.system('mkdir '+ foldername + f'/field{field}' + f'/spw{spw}'+ f'/scan{scan}')
+				scan = ds.SCAN_NUMBER
+				if not os.path.isdir(foldername + f'/field{field}' + f'/spw{spw}' + f'/scan{scan}'):
+					os.system('mkdir '+ foldername + f'/field{field}' + f'/spw{spw}'+ f'/scan{scan}')
 
-			tmp = ds.data.values
-			chi2 = tmp[:, :, :, :, :, 0]
-			N = tmp[:, :, :, :, :, 1]
-			chi2_dof = np.where(N > 0, chi2/N, np.nan)
+				tmp = ds.data.values
 
-			ntime, nfreq, ncorr, _, _ = chi2.shape
-			basename = foldername + f'/field{field}' + f'/spw{spw}'+ f'/scan{scan}/'
-			if len(os.listdir(basename)):
-				print(f"Removig contents of {basename} folder")
-				os.system(f'rm {basename}')
-			for t in range(ntime):
-				for f in range(nfreq):
-					for c in range(ncorr):
-						tmp = chi2_dof[t, f, c]
+				ntime, nfreq, ncorr, _, _, _ = tmp.shape
 
-						fig, ax = plt.subplots(nrows=1, ncols=2)
-						im = ax[0].imshow(tmp, cmap='inferno')
-						ax[0].axis('off')
-						ax[0].set_title('chisq dof')
+				basename = foldername + f'/field{field}' + f'/spw{spw}'+ f'/scan{scan}/'
+				if len(os.listdir(basename)):
+					print(f"Removig contents of {basename} folder")
+					os.system(f'rm {basename}*.png')
+				for t in range(ntime):
+					for f in range(nfreq):
+						for c in range(ncorr):
+							chi2 = tmp[t, f, c, :, :, 0]
+							N = tmp[t, f, c, :, :, 1]
+							chi2_dof = np.zeros_like(chi2)
+							chi2_dof[N>0] = chi2[N>0]/N[N>0]
+							chi2_dof[N==0] = np.nan
+							makeplot(chi2_dof, basename + f't{t}_f{f}_c{c}.png')
 
-						divider = make_axes_locatable(ax[0])
-						cax = divider.append_axes("bottom", size="10%", pad=0.01)
-						cb = fig.colorbar(im, cax=cax, orientation="horizontal")
-						cb.outline.set_visible(False)
-						# cb.ax.tick_params(length=, width=0.1, labelsize=0.1, pad=0.1)
+						# reduce over corr
+						chi2 = np.sum(tmp[t, f, :, :, :, 0], axis=0)
+						N = np.sum(tmp[t, f, :, :, :, 1], axis=0)
+						chi2_dof = np.zeros_like(chi2)
+						chi2_dof[N>0] = chi2[N>0]/N[N>0]
+						chi2_dof[N==0] = np.nan
+						makeplot(chi2_dof, basename + f't{t}_f{f}.png')
 
-						ax[1].hist(tmp[tmp != np.nan], bins=27)
+					# reduce over freq
+					chi2 = np.sum(tmp[t, :, :, :, :, 0], axis=(0,1))
+					N = np.sum(tmp[t, :, :, :, :, 1], axis=(0,1))
+					chi2_dof = np.zeros_like(chi2)
+					chi2_dof[N>0] = chi2[N>0]/N[N>0]
+					chi2_dof[N==0] = np.nan
+					makeplot(chi2_dof, basename + f't{t}.png')
 
-						plt.savefig(basename + f't{t}_f{f}_c{c}.png', dpi=250)
-						plt.close(fig)
+				# now the entire scan
+				chi2 = np.sum(tmp[:, :, :, :, :, 0], axis=(0,1,2))
+				N = np.sum(tmp[:, :, :, :, :, 1], axis=(0,1,2))
+				chi2_dof = np.zeros_like(chi2)
+				chi2_dof[N>0] = chi2[N>0]/N[N>0]
+				chi2_dof[N==0] = np.nan
+				makeplot(chi2_dof, basename + f'scan.png')
 
-					# reduce over corr
-					tmp = np.nanmean(chi2_dof[t, f], axis=0)
 
-					fig, ax = plt.subplots(nrows=1, ncols=2)
-					im = ax[0].imshow(tmp, cmap='inferno')
-					ax[0].axis('off')
-					ax[0].set_title('chisq dof')
 
-					divider = make_axes_locatable(ax[0])
-					cax = divider.append_axes("bottom", size="10%", pad=0.01)
-					cb = fig.colorbar(im, cax=cax, orientation="horizontal")
-					cb.outline.set_visible(False)
-					# cb.ax.tick_params(length=, width=0.1, labelsize=0.1, pad=0.1)
 
-					ax[1].hist(tmp[tmp != np.nan], bins=27)
+def makeplot(data, name):
+	nant, _ = data.shape
+	fig = plt.figure()
+	ax = plt.gca()
+	im = ax.imshow(data, cmap='inferno')
+	ax.set_xticks(np.arange(0, nant, 2))
+	ax.set_yticks(np.arange(nant))
+	ax.tick_params(axis='both', which='major',
+					  length=1, width=1, labelsize=4)
 
-					plt.savefig(basename + f't{t}_f{f}.png', dpi=250)
-					plt.close(fig)
+	divider = make_axes_locatable(ax)
+	cax = divider.append_axes("bottom", size="3%", pad=0.2)
+	cb = fig.colorbar(im, cax=cax, orientation="horizontal")
+	cb.outline.set_visible(False)
+	cb.ax.tick_params(length=1, width=1, labelsize=4, pad=0.1)
 
-				# reduce over freq
-				tmp = np.nanmean(chi2_dof[t], axis=(0, 1))
+	rax = divider.append_axes("right", size="50%", pad=0.025)
+	rax.hist(data[data != np.nan], bins=27)
+	rax.set_yticks([])
+	rax.tick_params(axis='y', which='both',
+					bottom=False, top=False,
+					labelbottom=False)
+	rax.tick_params(axis='x', which='both',
+					length=1, width=1, labelsize=4)
 
-				fig, ax = plt.subplots(nrows=1, ncols=2)
-				im = ax[0].imshow(tmp, cmap='inferno')
-				ax[0].axis('off')
-				ax[0].set_title('chisq dof')
-
-				divider = make_axes_locatable(ax[0])
-				cax = divider.append_axes("bottom", size="10%", pad=0.01)
-				cb = fig.colorbar(im, cax=cax, orientation="horizontal")
-				cb.outline.set_visible(False)
-				# cb.ax.tick_params(length=, width=0.1, labelsize=0.1, pad=0.1)
-
-				ax[1].hist(tmp[tmp != np.nan], bins=27)
-
-				plt.savefig(basename + f't{t}.png', dpi=250)
-				plt.close(fig)
-
-			# now the entire scan
-			tmp = np.nanmean(chi2_dof, axis=(0, 1, 2))
-
-			fig, ax = plt.subplots(nrows=1, ncols=2)
-			im = ax[0].imshow(tmp, cmap='inferno')
-			ax[0].axis('off')
-			ax[0].set_title('chisq dof')
-
-			divider = make_axes_locatable(ax[0])
-			cax = divider.append_axes("bottom", size="10%", pad=0.01)
-			cb = fig.colorbar(im, cax=cax, orientation="horizontal")
-			cb.outline.set_visible(False)
-			# cb.ax.tick_params(length=, width=0.1, labelsize=0.1, pad=0.1)
-
-			ax[1].hist(tmp[tmp != np.nan], bins=27)
-
-			plt.savefig(basename + f'scan{scan}.png', dpi=250)
-			plt.close(fig)
+	fig.suptitle(r'$\chi^2$ per d.o.f.', fontsize=16)
+	plt.savefig(name, dpi=250)
+	plt.close(fig)

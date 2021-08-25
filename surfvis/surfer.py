@@ -188,7 +188,7 @@ def main():
 					os.system(f'rm {basename}*.png')
 				for t in range(ntime):
 					for f in range(nfreq):
-						for c in range(ncorr):
+						for c in [0, -1]:
 							chi2 = tmp[t, f, c, :, :, 0]
 							N = tmp[t, f, c, :, :, 1]
 							chi2_dof = np.zeros_like(chi2)
@@ -197,31 +197,28 @@ def main():
 							makeplot(chi2_dof, basename + f't{t}_f{f}_c{c}.png')
 
 						# reduce over corr
-						chi2 = np.sum(tmp[t, f, :, :, :, 0], axis=0)
-						N = np.sum(tmp[t, f, :, :, :, 1], axis=0)
+						chi2 = np.nansum(tmp[t, f, (0, -1), :, :, 0], axis=0)
+						N = np.nansum(tmp[t, f, (0, -1), :, :, 1], axis=0)
 						chi2_dof = np.zeros_like(chi2)
 						chi2_dof[N>0] = chi2[N>0]/N[N>0]
 						chi2_dof[N==0] = np.nan
 						makeplot(chi2_dof, basename + f't{t}_f{f}.png')
 
 					# reduce over freq
-					chi2 = np.sum(tmp[t, :, :, :, :, 0], axis=(0,1))
-					N = np.sum(tmp[t, :, :, :, :, 1], axis=(0,1))
+					chi2 = np.nansum(tmp[t, :, (0, -1), :, :, 0], axis=(0,1))
+					N = np.nansum(tmp[t, :, (0, -1), :, :, 1], axis=(0,1))
 					chi2_dof = np.zeros_like(chi2)
 					chi2_dof[N>0] = chi2[N>0]/N[N>0]
 					chi2_dof[N==0] = np.nan
 					makeplot(chi2_dof, basename + f't{t}.png')
 
 				# now the entire scan
-				chi2 = np.sum(tmp[:, :, :, :, :, 0], axis=(0,1,2))
-				N = np.sum(tmp[:, :, :, :, :, 1], axis=(0,1,2))
+				chi2 = np.nansum(tmp[:, :, (0, -1), :, :, 0], axis=(0,1,2))
+				N = np.nansum(tmp[:, :, (0, -1), :, :, 1], axis=(0,1,2))
 				chi2_dof = np.zeros_like(chi2)
 				chi2_dof[N>0] = chi2[N>0]/N[N>0]
 				chi2_dof[N==0] = np.nan
 				makeplot(chi2_dof, basename + f'scan.png')
-
-
-
 
 def makeplot(data, name):
 	nant, _ = data.shape

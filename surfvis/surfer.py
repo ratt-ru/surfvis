@@ -69,6 +69,8 @@ def main():
 	tbin_counts = []
 	fbin_idx = []
 	fbin_counts = []
+	t0s = []
+	tfs = []
 	for ds in xds:
 		time = ds.TIME.values
 		ut, counts = np.unique(time, return_counts=True)
@@ -98,6 +100,11 @@ def main():
 		tcounts = tidx2[1:] - tidx2[0:-1]
 		tbin_counts.append(da.from_array(tcounts, chunks=1))
 
+		t0 = ut[tidx]
+		t0s.append(da.from_array(t0, chunks=1))
+		tf = ut[tidx + tcounts -1]
+		tfs.append(da.from_array(tf, chunks=1))
+
 		fidx = np.arange(0, nchan, options.nfreqs)
 		fbin_idx.append(da.from_array(fidx, chunks=1))
 		fidx2 = np.append(fidx, nchan)
@@ -114,8 +121,15 @@ def main():
 	idts = []
 	for i, ds in enumerate(xds):
 		resid = ds.get(options.rcol).data
+		# shape = resid.shape
+		# chnks = resid.chunks
+		# resid = (da.random.standard_normal(size=shape, chunks=chnks) +
+		# 			1.0j * da.random.standard_normal(size=shape, chunks=chnks))
 		weight = ds.get(options.wcol).data
+		# resid = resid/da.sqrt(2 * weight)
+		# weight = da.ones(shape, chunks=chnks)/2.0
 		flag = ds.get(options.fcol).data
+		# flag = da.zeros(shape, chunks=chnks, dtype=bool)
 		ant1 = ds.ANTENNA1.data
 		ant2 = ds.ANTENNA2.data
 
@@ -139,8 +153,8 @@ def main():
 			data_vars={'data': (('time', 'freq', 'corr', 'p', 'q', '2'), tmp),
 					   'fbin_idx': (('freq'), fbin_idx[i]),
 					   'fbin_counts': (('freq'), fbin_counts[i]),
-					   'tbin_idx': (('time'), tbin_idx[i]),
-					   'tbin_counts': (('time'), tbin_counts[i])},
+					   't0s': (('time'), t0s[i]),
+					   'tfs': (('time'), tfs[i])},
 			attrs = {'FIELD_ID': ds.FIELD_ID,
 					 'DATA_DESC_ID': ds.DATA_DESC_ID,
 					 'SCAN_NUMBER': ds.SCAN_NUMBER},
@@ -179,6 +193,10 @@ def main():
 					os.system('mkdir '+ foldername + f'/field{field}' + f'/spw{spw}'+ f'/scan{scan}')
 
 				tmp = ds.data.values
+				t0s = ds.t0s.values
+				tfs = ds.tfs.values
+				fbin_idx = ds.fbin_idx.values
+				fbin_counts = ds.fbin_counts.values
 
 				ntime, nfreq, ncorr, _, _, _ = tmp.shape
 
@@ -194,7 +212,8 @@ def main():
 							chi2_dof = np.zeros_like(chi2)
 							chi2_dof[N>0] = chi2[N>0]/N[N>0]
 							chi2_dof[N==0] = np.nan
-							makeplot(chi2_dof, basename + f't{t}_f{f}_c{c}.png')
+							makeplot(chi2_dof, basename + f't{t}_f{f}_c{c}.png',
+									 t0s[t], tf[t], fbin_idx[f], fbin_idx[f] + fbin_counts[f])
 
 						# reduce over corr
 						chi2 = np.nansum(tmp[t, f, (0, -1), :, :, 0], axis=0)
@@ -202,7 +221,8 @@ def main():
 						chi2_dof = np.zeros_like(chi2)
 						chi2_dof[N>0] = chi2[N>0]/N[N>0]
 						chi2_dof[N==0] = np.nan
-						makeplot(chi2_dof, basename + f't{t}_f{f}.png')
+						makeplot(chi2_dof, basename + f't{t}_f{f}.png',
+								 t0s[t], tf[t], fbin_idx[f], fbin_idx[f] + fbin_counts[f])
 
 					# reduce over freq
 					chi2 = np.nansum(tmp[t, :, (0, -1), :, :, 0], axis=(0,1))
@@ -210,7 +230,8 @@ def main():
 					chi2_dof = np.zeros_like(chi2)
 					chi2_dof[N>0] = chi2[N>0]/N[N>0]
 					chi2_dof[N==0] = np.nan
-					makeplot(chi2_dof, basename + f't{t}.png')
+					makeplot(chi2_dof, basename + f't{t}.png',
+					         t0s[t], tf[t], 0, fbin_idx[-1] + fbin_counts[-1])
 
 				# now the entire scan
 				chi2 = np.nansum(tmp[:, :, (0, -1), :, :, 0], axis=(0,1,2))
@@ -218,9 +239,10 @@ def main():
 				chi2_dof = np.zeros_like(chi2)
 				chi2_dof[N>0] = chi2[N>0]/N[N>0]
 				chi2_dof[N==0] = np.nan
-				makeplot(chi2_dof, basename + f'scan.png')
+				makeplot(chi2_dof, basename + f'scan.png',
+						 t0s[0], tf[-1], 0, fbin_idx[-1] + fbin_counts[-1])
 
-def makeplot(data, name):
+def makeplot(data, name, t0, tf, chan0, chanf):
 	nant, _ = data.shape
 	fig = plt.figure()
 	ax = plt.gca()
@@ -245,6 +267,6 @@ def makeplot(data, name):
 	rax.tick_params(axis='x', which='both',
 					length=1, width=1, labelsize=4)
 
-	fig.suptitle(r'$\chi^2$ per d.o.f.', fontsize=16)
+	fig.suptitle(f't0 = {t0}, tf = {tf}, chan {chan0}-{chanf}', fontsize=10)
 	plt.savefig(name, dpi=250)
 	plt.close(fig)

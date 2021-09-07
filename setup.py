@@ -10,6 +10,8 @@ requirements = [
                 'argparse',
                 'ipython',
                 'codex-africanus[dask]',
+                # 'astropy',
+                # 'scipy',
 
                 "dask-ms[xarray, zarr]"
                 "@git+https://github.com/ska-sa/dask-ms.git"

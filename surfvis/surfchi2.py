@@ -15,7 +15,8 @@ from dask.diagnostics import ProgressBar
 from surfvis.utils import chisq
 from daskms import xds_from_ms, xds_from_table
 from daskms.experimental.zarr import xds_from_zarr, xds_to_zarr
-from astropy.visualization import hist
+# might make for cooler histograms but doesn't work out of the box
+# from astropy.visualization import hist
 
 
 # COMMAND LINE OPTIONS
@@ -38,6 +39,8 @@ def create_parser():
 				      help='Number of unique times in each chunk.')
 	parser.add_option('--nfreqs', default=128, type=int,
 					  help='Number of frequencies in a chunk.')
+	parser.add_option("--use-corrs", type=str,
+					  help='Comma seprated list of correlations to use (do not use spaces)')
 	return parser
 
 def main():
@@ -118,9 +121,22 @@ def main():
 					  chunks=chunks,
 					  group_cols=['FIELD_ID', 'DATA_DESC_ID', 'SCAN_NUMBER'])
 
+	if options.use_corrs is None:
+		print('Using only diagonal correlations')
+		if len(xds[0].corr) > 1:
+			use_corrs = [0, -1]
+		else:
+			use_corrs = [0]
+	else:
+		use_corrs = list(map(int, options.use_corrs.split(',')))
+		print(f"Using correlations {use_corrs}")
+	ncorr = len(use_corrs)
+
 	out_ds = []
 	idts = []
 	for i, ds in enumerate(xds):
+		ds = ds.sel(corr=use_corrs)
+
 		resid = ds.get(options.rcol).data
 		# shape = resid.shape
 		# chnks = resid.chunks
@@ -203,11 +219,11 @@ def main():
 
 				basename = foldername + f'/field{field}' + f'/spw{spw}'+ f'/scan{scan}/'
 				if len(os.listdir(basename)):
-					print(f"Removig contents of {basename} folder")
+					print(f"Removing contents of {basename} folder")
 					os.system(f'rm {basename}*.png')
 				for t in range(ntime):
 					for f in range(nfreq):
-						for c in [0, -1]:
+						for c in range(ncorr):
 							chi2 = tmp[t, f, c, :, :, 0]
 							N = tmp[t, f, c, :, :, 1]
 							chi2_dof = np.zeros_like(chi2)
@@ -260,9 +276,9 @@ def makeplot(data, name, t0, tf, chan0, chanf):
 	cb.ax.tick_params(length=1, width=1, labelsize=4, pad=0.1)
 
 	rax = divider.append_axes("right", size="50%", pad=0.025)
-	hist(data[data != np.nan], bins='knuth', ax=rax, histtype='stepfilled',
-		 alpha=0.2, density=True)
-	# rax.hist(data[data != np.nan], bins=27)
+	# hist(data[data != np.nan], bins='knuth', ax=rax, histtype='stepfilled',
+	# 	 alpha=0.2, density=True)
+	rax.hist(data[data != np.nan], bins=27)
 	rax.set_yticks([])
 	rax.tick_params(axis='y', which='both',
 					bottom=False, top=False,

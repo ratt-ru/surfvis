@@ -15,6 +15,7 @@ from dask.diagnostics import ProgressBar
 from surfvis.utils import chisq
 from daskms import xds_from_ms, xds_from_table
 from daskms.experimental.zarr import xds_from_zarr, xds_to_zarr
+from astropy.visualization import hist
 
 
 # COMMAND LINE OPTIONS
@@ -259,7 +260,9 @@ def makeplot(data, name, t0, tf, chan0, chanf):
 	cb.ax.tick_params(length=1, width=1, labelsize=4, pad=0.1)
 
 	rax = divider.append_axes("right", size="50%", pad=0.025)
-	rax.hist(data[data != np.nan], bins=27)
+	hist(data[data != np.nan], bins='knuth', ax=rax, histtype='stepfilled',
+		 alpha=0.2, density=True)
+	# rax.hist(data[data != np.nan], bins=27)
 	rax.set_yticks([])
 	rax.tick_params(axis='y', which='both',
 					bottom=False, top=False,

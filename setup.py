@@ -36,7 +36,7 @@ setup(
      entry_points='''
                     [console_scripts]
                     surfvis=surfvis.surfvis:main
-                    surfer=surfvis.surfer:main
+                    surfchi2=surfvis.surfchi2:main
      '''
      ,
  )

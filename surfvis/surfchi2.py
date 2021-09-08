@@ -135,20 +135,20 @@ def main():
 	out_ds = []
 	idts = []
 	for i, ds in enumerate(xds):
-		ds = ds.sel(corr=use_corrs)
+		ds_out = ds.sel(corr=use_corrs)
 
-		resid = ds.get(options.rcol).data
+		resid = ds_out.get(options.rcol).data
 		# shape = resid.shape
 		# chnks = resid.chunks
 		# resid = (da.random.standard_normal(size=shape, chunks=chnks) +
 		# 			1.0j * da.random.standard_normal(size=shape, chunks=chnks))
-		weight = ds.get(options.wcol).data
+		weight = ds_out.get(options.wcol).data
 		# resid = resid/da.sqrt(2 * weight)
 		# weight = da.ones(shape, chunks=chnks)/2.0
-		flag = ds.get(options.fcol).data
+		flag = ds_out.get(options.fcol).data
 		# flag = da.zeros(shape, chunks=chnks, dtype=bool)
-		ant1 = ds.ANTENNA1.data
-		ant2 = ds.ANTENNA2.data
+		ant1 = ds_out.ANTENNA1.data
+		ant2 = ds_out.ANTENNA2.data
 
 		# ncorr = resid.shape[0]
 
@@ -158,9 +158,9 @@ def main():
 		# spw = xds_from_table(msname + '::SPECTRAL_WINDOW')
 		# freq = spw[0].CHAN_FREQ.values
 
-		field = ds.FIELD_ID
-		ddid = ds.DATA_DESC_ID
-		scan = ds.SCAN_NUMBER
+		field = ds_out.FIELD_ID
+		ddid = ds_out.DATA_DESC_ID
+		scan = ds_out.SCAN_NUMBER
 
 		tmp = chisq(resid, weight, flag, ant1, ant2,
 				    rbin_idx[i], rbin_counts[i],
@@ -180,7 +180,7 @@ def main():
 			# 		'corr': (('corr'), np.arange(ncorr))}
 		)
 
-		idt = f'::F{ds.FIELD_ID}_D{ds.DATA_DESC_ID}_S{ds.SCAN_NUMBER}'
+		idt = f'::F{ds_out.FIELD_ID}_D{ds_out.DATA_DESC_ID}_S{ds_out.SCAN_NUMBER}'
 		out_ds.append(xds_to_zarr(d, options.dataout + idt))
 		idts.append(idt)
 

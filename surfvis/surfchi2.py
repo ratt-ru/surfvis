@@ -134,29 +134,36 @@ def main():
 
 	out_ds = []
 	idts = []
+	rechunk_chan = False
 	for i, ds in enumerate(xds):
-		# we have to rename dims if they are not standard
-		if options.rcol not in ["DATA", "MODEL_DATA", "RESIDUAL", "CORRECTED_DATA",
-								"CORRECTED_RESIDUAL"]:
-			ds = ds.swap_dims({f'{options.rcol}-1': 'chan', f'{options.rcol}-2': 'corr'})
+		rdims = ds.get(options.rcol).dims
+		# LB - I don't think this ever happens?
+		# if rdims[0] != 'row':
+		# 	ds = ds.swap_dims({rdims[0]: 'row'})
+		# 	rechunk_row = True
+		if rdims[1] != 'chan':
+			ds = ds.swap_dims({rdims[1]: 'chan'})
+			rechunk_chan = True
+		if rdims[2] != 'corr':
+			ds = ds.swap_dims({rdims[2]: 'corr'})
 
-		ds_out = ds.sel(corr=use_corrs)
+		ds = ds.sel(corr=use_corrs)
 
-		resid = ds_out.get(options.rcol).data
-		if options.rcol not in ["DATA", "MODEL_DATA", "RESIDUAL", "CORRECTED_DATA"]:
+		resid = ds.get(options.rcol).data
+		if rechunk_chan:
 			resid = resid.rechunk({1:options.nfreqs})
 
 		# shape = resid.shape
 		# chnks = resid.chunks
 		# resid = (da.random.standard_normal(size=shape, chunks=chnks) +
 		# 			1.0j * da.random.standard_normal(size=shape, chunks=chnks))
-		weight = ds_out.get(options.wcol).data
+		weight = ds.get(options.wcol).data
 		# resid = resid/da.sqrt(2 * weight)
 		# weight = da.ones(shape, chunks=chnks)/2.0
-		flag = ds_out.get(options.fcol).data
+		flag = ds.get(options.fcol).data
 		# flag = da.zeros(shape, chunks=chnks, dtype=bool)
-		ant1 = ds_out.ANTENNA1.data
-		ant2 = ds_out.ANTENNA2.data
+		ant1 = ds.ANTENNA1.data
+		ant2 = ds.ANTENNA2.data
 
 		# ncorr = resid.shape[0]
 
@@ -166,9 +173,9 @@ def main():
 		# spw = xds_from_table(msname + '::SPECTRAL_WINDOW')
 		# freq = spw[0].CHAN_FREQ.values
 
-		field = ds_out.FIELD_ID
-		ddid = ds_out.DATA_DESC_ID
-		scan = ds_out.SCAN_NUMBER
+		field = ds.FIELD_ID
+		ddid = ds.DATA_DESC_ID
+		scan = ds.SCAN_NUMBER
 
 		tmp = chisq(resid, weight, flag, ant1, ant2,
 				    rbin_idx[i], rbin_counts[i],
@@ -188,7 +195,7 @@ def main():
 			# 		'corr': (('corr'), np.arange(ncorr))}
 		)
 
-		idt = f'::F{ds_out.FIELD_ID}_D{ds_out.DATA_DESC_ID}_S{ds_out.SCAN_NUMBER}'
+		idt = f'::F{ds.FIELD_ID}_D{ds.DATA_DESC_ID}_S{ds.SCAN_NUMBER}'
 		out_ds.append(xds_to_zarr(d, options.dataout + idt))
 		idts.append(idt)
 

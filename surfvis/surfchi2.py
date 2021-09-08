@@ -135,9 +135,17 @@ def main():
 	out_ds = []
 	idts = []
 	for i, ds in enumerate(xds):
+		# we have to rename dims if they are not standard
+		if options.rcol not in ["DATA", "MODEL_DATA", "RESIDUAL", "CORRECTED_DATA",
+								"CORRECTED_RESIDUAL"]:
+			ds = ds.swap_dims({f'{options.rcol}-1': 'chan', f'{options.rcol}-2': 'corr'})
+
 		ds_out = ds.sel(corr=use_corrs)
 
 		resid = ds_out.get(options.rcol).data
+		if options.rcol not in ["DATA", "MODEL_DATA", "RESIDUAL", "CORRECTED_DATA"]:
+			resid = resid.rechunk({1:options.nfreqs})
+
 		# shape = resid.shape
 		# chnks = resid.chunks
 		# resid = (da.random.standard_normal(size=shape, chunks=chnks) +

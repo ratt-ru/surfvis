@@ -48,8 +48,6 @@ def _chisq(resid, weight, flag, ant1, ant2,
            rbin_idx, rbin_counts, fbin_idx, fbin_counts):
     nrow, nchan, ncorr = resid.shape
 
-    print(nrow, nchan, ncorr)
-
     nto = rbin_idx.size
     nfo = fbin_idx.size
     uant1 = np.unique(ant1)

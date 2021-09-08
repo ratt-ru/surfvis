@@ -170,8 +170,8 @@ def main():
 			data_vars={'data': (('time', 'freq', 'corr', 'p', 'q', '2'), tmp),
 					   'fbin_idx': (('freq'), fbin_idx[i]),
 					   'fbin_counts': (('freq'), fbin_counts[i]),
-					   't0s': (('time'), t0s[i]),
-					   'tfs': (('time'), tfs[i])},
+					   'tbin_idx': (('time'), tbin_idx[i]),
+					   'tbin_counts': (('time'), tbin_counts[i])},
 			attrs = {'FIELD_ID': ds.FIELD_ID,
 					 'DATA_DESC_ID': ds.DATA_DESC_ID,
 					 'SCAN_NUMBER': ds.SCAN_NUMBER},
@@ -210,8 +210,8 @@ def main():
 					os.system('mkdir '+ foldername + f'/field{field}' + f'/spw{spw}'+ f'/scan{scan}')
 
 				tmp = ds.data.values
-				t0s = ds.t0s.values
-				tfs = ds.tfs.values
+				tbin_idx = ds.tbin_idx.values
+				tbin_counts = ds.tbin_counts.values
 				fbin_idx = ds.fbin_idx.values
 				fbin_counts = ds.fbin_counts.values
 
@@ -230,7 +230,8 @@ def main():
 							chi2_dof[N>0] = chi2[N>0]/N[N>0]
 							chi2_dof[N==0] = np.nan
 							makeplot(chi2_dof, basename + f't{t}_f{f}_c{c}.png',
-									 t0s[t], tf[t], fbin_idx[f], fbin_idx[f] + fbin_counts[f])
+									 tbin_idx[t], tbin_idx[t] + tbin_counts[t],
+									 fbin_idx[f], fbin_idx[f] + fbin_counts[f])
 
 						# reduce over corr
 						chi2 = np.nansum(tmp[t, f, (0, -1), :, :, 0], axis=0)
@@ -239,7 +240,8 @@ def main():
 						chi2_dof[N>0] = chi2[N>0]/N[N>0]
 						chi2_dof[N==0] = np.nan
 						makeplot(chi2_dof, basename + f't{t}_f{f}.png',
-								 t0s[t], tf[t], fbin_idx[f], fbin_idx[f] + fbin_counts[f])
+								 tbin_idx[t], tbin_idx[t] + tbin_counts[t],
+								 fbin_idx[f], fbin_idx[f] + fbin_counts[f])
 
 					# reduce over freq
 					chi2 = np.nansum(tmp[t, :, (0, -1), :, :, 0], axis=(0,1))
@@ -248,7 +250,8 @@ def main():
 					chi2_dof[N>0] = chi2[N>0]/N[N>0]
 					chi2_dof[N==0] = np.nan
 					makeplot(chi2_dof, basename + f't{t}.png',
-					         t0s[t], tf[t], 0, fbin_idx[-1] + fbin_counts[-1])
+					         tbin_idx[t], tbin_idx[t] + tbin_counts[t],
+							 0, fbin_idx[-1] + fbin_counts[-1])
 
 				# now the entire scan
 				chi2 = np.nansum(tmp[:, :, (0, -1), :, :, 0], axis=(0,1,2))
@@ -257,7 +260,8 @@ def main():
 				chi2_dof[N>0] = chi2[N>0]/N[N>0]
 				chi2_dof[N==0] = np.nan
 				makeplot(chi2_dof, basename + f'scan.png',
-						 t0s[0], tf[-1], 0, fbin_idx[-1] + fbin_counts[-1])
+						 0, tbin_idx[-1] + tbin_counts[-1],
+						 0, fbin_idx[-1] + fbin_counts[-1])
 
 def makeplot(data, name, t0, tf, chan0, chanf):
 	nant, _ = data.shape
@@ -286,6 +290,6 @@ def makeplot(data, name, t0, tf, chan0, chanf):
 	rax.tick_params(axis='x', which='both',
 					length=1, width=1, labelsize=4)
 
-	fig.suptitle(f't0 = {t0}, tf = {tf}, chan {chan0}-{chanf}', fontsize=10)
+	fig.suptitle(f't {t0}-{tf}, chan {chan0}-{chanf}', fontsize=15)
 	plt.savefig(name, dpi=250)
 	plt.close(fig)

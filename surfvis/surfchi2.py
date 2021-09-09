@@ -296,8 +296,8 @@ def makeplot(data, name, t0, tf, chan0, chanf):
 
 	rax = divider.append_axes("right", size="50%", pad=0.025)
 	x = data[~ np.isnan(data)]
-	hist(x, bins='knuth', ax=rax, histtype='stepfilled',
-		 alpha=0.5, density=True)
+	hist(x, bins='scott', ax=rax, histtype='stepfilled',
+		 alpha=0.5, density=False)
 	rax.set_yticks([])
 	rax.tick_params(axis='y', which='both',
 					bottom=False, top=False,

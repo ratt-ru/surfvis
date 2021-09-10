@@ -114,9 +114,9 @@ def _flagchisq(resid, weight, flag, use_corrs, sigma):
     for r in range(nrow):
         for f in range(nchan):
             for c in use_corrs:
-                r = resid[r, f, c]
-                w = weight[r, f c]
-                chi2 = (r.conj() * w * r).real
+                res = resid[r, f, c]
+                w = weight[r, f, c]
+                chi2 = (np.conj(res) * w * res).real
                 if chi2 > sigma or chi2 == 0:
                     flag[r, f, c] = True
                 else:

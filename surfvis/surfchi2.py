@@ -12,7 +12,7 @@ import xarray as xr
 import dask
 import dask.array as da
 from dask.diagnostics import ProgressBar
-from surfvis.utils import chisq
+from surfvis.utils import surfchisq
 from daskms import xds_from_ms, xds_from_table
 from daskms.experimental.zarr import xds_from_zarr, xds_to_zarr
 # might make for cooler histograms but doesn't work out of the box
@@ -177,9 +177,9 @@ def main():
 		ddid = ds.DATA_DESC_ID
 		scan = ds.SCAN_NUMBER
 
-		tmp = chisq(resid, weight, flag, ant1, ant2,
-				    rbin_idx[i], rbin_counts[i],
-				    fbin_idx[i], fbin_counts[i])
+		tmp = surfchisq(resid, weight, flag, ant1, ant2,
+				        rbin_idx[i], rbin_counts[i],
+				        fbin_idx[i], fbin_counts[i])
 
 		d = xr.Dataset(
 			data_vars={'data': (('time', 'freq', 'corr', 'p', 'q', '2'), tmp),
@@ -292,7 +292,7 @@ def makeplot(data, name, t0, tf, chan0, chanf):
 	cax = divider.append_axes("bottom", size="3%", pad=0.2)
 	cb = fig.colorbar(im, cax=cax, orientation="horizontal")
 	cb.outline.set_visible(False)
-	cb.ax.tick_params(length=1, width=1, labelsize=4, pad=0.1)
+	cb.ax.tick_params(length=1, width=1, labelsize=6, pad=0.1)
 
 	rax = divider.append_axes("right", size="50%", pad=0.025)
 	x = data[~ np.isnan(data)]
@@ -303,7 +303,7 @@ def makeplot(data, name, t0, tf, chan0, chanf):
 					bottom=False, top=False,
 					labelbottom=False)
 	rax.tick_params(axis='x', which='both',
-					length=1, width=1, labelsize=6)
+					length=1, width=1, labelsize=8)
 
 	fig.suptitle(f't {t0}-{tf}, chan {chan0}-{chanf}', fontsize=20)
 	plt.savefig(name, dpi=250)

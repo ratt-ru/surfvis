@@ -39,6 +39,7 @@ setup(
                     [console_scripts]
                     surfvis=surfvis.surfvis:main
                     surfchi2=surfvis.surfchi2:main
+                    flagchi2=surfvis.flagchi2:main
      '''
      ,
  )

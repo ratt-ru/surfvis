@@ -21,11 +21,11 @@ def surf(p, q, gp, gq, data, resid, weight, flag, basename):
         raise StandardError("Error occurred. Original traceback "
                             "is\n%s\n" % traceback_str)
 
-def chisq(resid, weight, flag, ant1, ant2,
+def surfchisq(resid, weight, flag, ant1, ant2,
           rbin_idx, rbin_counts, fbin_idx, fbin_counts):
 
     nant = da.maximum(ant1.max(), ant2.max()).compute() + 1
-    res = da.blockwise(_chisq, 'tfcpq2',
+    res = da.blockwise(_surfchisq, 'tfcpq2',
                        resid, 'tfc',
                        weight, 'tfc',
                        flag, 'tfc',
@@ -44,7 +44,7 @@ def chisq(resid, weight, flag, ant1, ant2,
 
 
 @njit(fastmath=True, nogil=True)
-def _chisq(resid, weight, flag, ant1, ant2,
+def _surfchisq(resid, weight, flag, ant1, ant2,
            rbin_idx, rbin_counts, fbin_idx, fbin_counts):
     nrow, nchan, ncorr = resid.shape
 
@@ -95,3 +95,30 @@ def _chisq(resid, weight, flag, ant1, ant2,
     return out
 
 
+def flagchisq(resid, weight, flag, use_corrs, sigma=25):
+
+    res = da.blockwise(_flagchisq, 'rfc',
+                       resid, 'rfc',
+                       weight, 'rfc',
+                       flag, 'rfc',
+                       use_corrs, None,
+                       sigma, None,
+                       dtype=bool)
+    return res
+
+
+@njit(fastmath=True, nogil=True)
+def _flagchisq(resid, weight, flag, use_corrs, sigma):
+    nrow, nchan, ncorr = resid.shape
+
+    for r in range(nrow):
+        for f in range(nchan):
+            for c in use_corrs:
+                r = resid[r, f, c]
+                w = weight[r, f c]
+                chi2 = (r.conj() * w * r).real
+                if chi2 > sigma or chi2 == 0:
+                    flag[r, f, c] = True
+                else:
+                    flag[r, f, c] = False
+    return flag

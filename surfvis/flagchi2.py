@@ -21,7 +21,7 @@ def create_parser():
     parser.add_option('--rcol', default='RESIDUAL', help='Residual column (default = RESIDUAL)')
     parser.add_option('--wcol', default='WEIGHT_SPECTRUM', help='Weight column (default = WEIGHT_SPECTRUM)')
     parser.add_option('--fcol', default='FLAG', help='Flag column (default = FLAG)')
-    parser.add_option('--sigma', default=25, help='chisq threshold (default = 25)')
+    parser.add_option('--sigma', default=25, type=float, help='chisq threshold (default = 25)')
     parser.add_option('--nthreads', default=4, type=int, help='Number of dask threads to use')
     parser.add_option('--nrows', default=10000, type=int, help='Number of rows in each chunk (default=10000)')
     parser.add_option('--nfreqs', default=128, type=int, help='Number of frequencies in a chunk (default=128)')

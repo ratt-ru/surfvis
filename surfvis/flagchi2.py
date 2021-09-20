@@ -21,7 +21,7 @@ def create_parser():
     parser.add_option('--rcol', default='RESIDUAL', help='Residual column (default = RESIDUAL)')
     parser.add_option('--wcol', default='WEIGHT_SPECTRUM', help='Weight column (default = WEIGHT_SPECTRUM)')
     parser.add_option('--fcol', default='FLAG', help='Flag column (default = FLAG)')
-    parser.add_option('--sigma', default=25, type=float, help='chisq threshold (default = 25)')
+    parser.add_option('--sigma', default=10, type=float, help='chisq threshold (default = 25)')
     parser.add_option('--nthreads', default=4, type=int, help='Number of dask threads to use')
     parser.add_option('--nrows', default=10000, type=int, help='Number of rows in each chunk (default=10000)')
     parser.add_option('--nfreqs', default=128, type=int, help='Number of frequencies in a chunk (default=128)')
@@ -38,10 +38,16 @@ def main():
     else:
         msname = args[0].rstrip('/')
 
+    schema = {}
+	schema[options.rcol] = {'dims': ('chan', 'corr')}
+	schema[options.wcol] = {'dims': ('chan', 'corr')}
+	schema[options.fcol] = {'dims': ('chan', 'corr')}
+
     xds = xds_from_ms(msname,
-                        columns=[options.rcol, options.wcol, options.fcol],
-                        chunks={'row': options.nrows, 'chan': options.nfreqs},
-                        group_cols=['FIELD_ID', 'DATA_DESC_ID', 'SCAN_NUMBER'])
+                      columns=[options.rcol, options.wcol, options.fcol],
+                      chunks={'row': options.nrows, 'chan': options.nfreqs},
+                      group_cols=['FIELD_ID', 'DATA_DESC_ID', 'SCAN_NUMBER'],
+                      table_schema=schema)
 
     if options.use_corrs is None:
         print('Using only diagonal correlations')
@@ -54,23 +60,8 @@ def main():
         print(f"Using correlations {use_corrs}")
 
     out_data = []
-    rechunk_chan = False
     for i, ds in enumerate(xds):
-        rdims = ds.get(options.rcol).dims
-        # LB - I don't think this ever happens?
-        # if rdims[0] != 'row':
-        # 	ds = ds.swap_dims({rdims[0]: 'row'})
-        # 	rechunk_row = True
-        if rdims[1] != 'chan':
-            ds = ds.swap_dims({rdims[1]: 'chan'})
-            rechunk_chan = True
-        if rdims[2] != 'corr':
-            ds = ds.swap_dims({rdims[2]: 'corr'})
-
         resid = ds.get(options.rcol).data
-        if rechunk_chan:
-            resid = resid.rechunk({1:options.nfreqs})
-
         weight = ds.get(options.wcol).data
         flag = ds.get(options.fcol).data
 

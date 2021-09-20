@@ -110,14 +110,14 @@ def flagchisq(resid, weight, flag, use_corrs, sigma=25):
 @njit(fastmath=True, nogil=True)
 def _flagchisq(resid, weight, flag, use_corrs, sigma):
     nrow, nchan, ncorr = resid.shape
-
+    sigmasq = sigma**2
     for r in range(nrow):
         for f in range(nchan):
             for c in use_corrs:
                 res = resid[r, f, c]
                 w = weight[r, f, c]
                 chi2 = (np.conj(res) * w * res).real
-                if chi2 > sigma or chi2 == 0:
+                if chi2 > sigmasq or chi2 == 0:
                     flag[r, f, c] = True
                 else:
                     flag[r, f, c] = False

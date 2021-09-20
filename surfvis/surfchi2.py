@@ -61,10 +61,13 @@ def main():
 		msname = args[0].rstrip('/')
 
 	# chunking info
+	schema = {}
+	schema[options.fcol] = {'dims': ('chan', 'corr')}
 	xds = xds_from_ms(msname,
 					  chunks={'row': -1},
-					  columns=['TIME', 'FLAG'],
-					  group_cols=['FIELD_ID', 'DATA_DESC_ID', 'SCAN_NUMBER'])
+					  columns=['TIME', args.fcol],
+					  group_cols=['FIELD_ID', 'DATA_DESC_ID', 'SCAN_NUMBER'],
+					  table_schema=schema)
 
 	chunks = []
 	rbin_idx = []
@@ -115,11 +118,17 @@ def main():
 		fcounts = fidx2[1:] - fidx2[0:-1]
 		fbin_counts.append(da.from_array(fcounts, chunks=1))
 
+	schema = {}
+	schema[options.rcol] = {'dims': ('chan', 'corr')}
+	schema[options.wcol] = {'dims': ('chan', 'corr')}
+	schema[options.fcol] = {'dims': ('chan', 'corr')}
+
 	xds = xds_from_ms(msname,
 					  columns=[options.rcol, options.wcol, options.fcol,
 					  		   'ANTENNA1', 'ANTENNA2', 'TIME'],
 					  chunks=chunks,
-					  group_cols=['FIELD_ID', 'DATA_DESC_ID', 'SCAN_NUMBER'])
+					  group_cols=['FIELD_ID', 'DATA_DESC_ID', 'SCAN_NUMBER'],
+					  table_schema=schema)
 
 	if options.use_corrs is None:
 		print('Using only diagonal correlations')
@@ -134,34 +143,12 @@ def main():
 
 	out_ds = []
 	idts = []
-	rechunk_chan = False
 	for i, ds in enumerate(xds):
-		rdims = ds.get(options.rcol).dims
-		# LB - I don't think this ever happens?
-		# if rdims[0] != 'row':
-		# 	ds = ds.swap_dims({rdims[0]: 'row'})
-		# 	rechunk_row = True
-		if rdims[1] != 'chan':
-			ds = ds.swap_dims({rdims[1]: 'chan'})
-			rechunk_chan = True
-		if rdims[2] != 'corr':
-			ds = ds.swap_dims({rdims[2]: 'corr'})
-
 		ds = ds.sel(corr=use_corrs)
 
 		resid = ds.get(options.rcol).data
-		if rechunk_chan:
-			resid = resid.rechunk({1:options.nfreqs})
-
-		# shape = resid.shape
-		# chnks = resid.chunks
-		# resid = (da.random.standard_normal(size=shape, chunks=chnks) +
-		# 			1.0j * da.random.standard_normal(size=shape, chunks=chnks))
 		weight = ds.get(options.wcol).data
-		# resid = resid/da.sqrt(2 * weight)
-		# weight = da.ones(shape, chunks=chnks)/2.0
 		flag = ds.get(options.fcol).data
-		# flag = da.zeros(shape, chunks=chnks, dtype=bool)
 		ant1 = ds.ANTENNA1.data
 		ant2 = ds.ANTENNA2.data
 

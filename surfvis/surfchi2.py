@@ -65,7 +65,7 @@ def main():
 	schema[options.fcol] = {'dims': ('chan', 'corr')}
 	xds = xds_from_ms(msname,
 					  chunks={'row': -1},
-					  columns=['TIME', args.fcol],
+					  columns=['TIME', options.fcol],
 					  group_cols=['FIELD_ID', 'DATA_DESC_ID', 'SCAN_NUMBER'],
 					  table_schema=schema)
 

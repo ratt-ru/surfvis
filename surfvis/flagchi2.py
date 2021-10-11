@@ -39,9 +39,9 @@ def main():
         msname = args[0].rstrip('/')
 
     schema = {}
-	schema[options.rcol] = {'dims': ('chan', 'corr')}
-	schema[options.wcol] = {'dims': ('chan', 'corr')}
-	schema[options.fcol] = {'dims': ('chan', 'corr')}
+    schema[options.rcol] = {'dims': ('chan', 'corr')}
+    schema[options.wcol] = {'dims': ('chan', 'corr')}
+    schema[options.fcol] = {'dims': ('chan', 'corr')}
 
     xds = xds_from_ms(msname,
                       columns=[options.rcol, options.wcol, options.fcol],

@@ -40,7 +40,8 @@ def create_parser():
 	parser.add_option('--nfreqs', default=128, type=int,
 					  help='Number of frequencies in a chunk.')
 	parser.add_option("--use-corrs", type=str,
-					  help='Comma seprated list of correlations to use (do not use spaces)')
+					  help='Comma seprated list of correlations to use (do '
+					  'not use spaces). Default = diagonal correlations')
 	return parser
 
 def main():
@@ -231,9 +232,12 @@ def main():
 							chi2_dof = np.zeros_like(chi2)
 							chi2_dof[N>0] = chi2[N>0]/N[N>0]
 							chi2_dof[N==0] = np.nan
+							t0 = tbin_idx[t]
+							tf = tbin_idx[t] + tbin_counts[t]
+							chan0 = fbin_idx[f]
+							chanf = fbin_idx[f] + fbin_counts[f]
 							makeplot(chi2_dof, basename + f't{t}_f{f}_c{c}.png',
-									 tbin_idx[t], tbin_idx[t] + tbin_counts[t],
-									 fbin_idx[f], fbin_idx[f] + fbin_counts[f])
+									 f't {t0}-{tf}, chan {chan0}-{chanf}, corr {c}')
 
 						# reduce over corr
 						chi2 = np.nansum(tmp[t, f, (0, -1), :, :, 0], axis=0)
@@ -241,9 +245,12 @@ def main():
 						chi2_dof = np.zeros_like(chi2)
 						chi2_dof[N>0] = chi2[N>0]/N[N>0]
 						chi2_dof[N==0] = np.nan
+						t0 = tbin_idx[t]
+						tf = tbin_idx[t] + tbin_counts[t]
+						chan0 = fbin_idx[f]
+						chanf = fbin_idx[f] + fbin_counts[f]
 						makeplot(chi2_dof, basename + f't{t}_f{f}.png',
-								 tbin_idx[t], tbin_idx[t] + tbin_counts[t],
-								 fbin_idx[f], fbin_idx[f] + fbin_counts[f])
+								 f't {t0}-{tf}, chan {chan0}-{chanf}')
 
 					# reduce over freq
 					chi2 = np.nansum(tmp[t, :, (0, -1), :, :, 0], axis=(0,1))
@@ -251,9 +258,10 @@ def main():
 					chi2_dof = np.zeros_like(chi2)
 					chi2_dof[N>0] = chi2[N>0]/N[N>0]
 					chi2_dof[N==0] = np.nan
+					t0 = tbin_idx[t]
+					tf = tbin_idx[t] + tbin_counts[t]
 					makeplot(chi2_dof, basename + f't{t}.png',
-					         tbin_idx[t], tbin_idx[t] + tbin_counts[t],
-							 0, fbin_idx[-1] + fbin_counts[-1])
+					         f't {t0}-{tf}')
 
 				# now the entire scan
 				chi2 = np.nansum(tmp[:, :, (0, -1), :, :, 0], axis=(0,1,2))
@@ -262,10 +270,9 @@ def main():
 				chi2_dof[N>0] = chi2[N>0]/N[N>0]
 				chi2_dof[N==0] = np.nan
 				makeplot(chi2_dof, basename + f'scan.png',
-						 0, tbin_idx[-1] + tbin_counts[-1],
-						 0, fbin_idx[-1] + fbin_counts[-1])
+						 f'scan {scan}.png')
 
-def makeplot(data, name, t0, tf, chan0, chanf):
+def makeplot(data, name, subt):
 	nant, _ = data.shape
 	fig = plt.figure()
 	ax = plt.gca()
@@ -292,6 +299,6 @@ def makeplot(data, name, t0, tf, chan0, chanf):
 	rax.tick_params(axis='x', which='both',
 					length=1, width=1, labelsize=8)
 
-	fig.suptitle(f't {t0}-{tf}, chan {chan0}-{chanf}', fontsize=20)
+	fig.suptitle(subt, fontsize=20)
 	plt.savefig(name, dpi=250)
 	plt.close(fig)

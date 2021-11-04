@@ -125,11 +125,11 @@ def main():
 	schema[options.fcol] = {'dims': ('chan', 'corr')}
 
 	xds = xds_from_ms(msname,
-					  columns=[options.rcol, options.wcol, options.fcol,
-					  		   'ANTENNA1', 'ANTENNA2', 'TIME'],
-					  chunks=chunks,
-					  group_cols=['FIELD_ID', 'DATA_DESC_ID', 'SCAN_NUMBER'],
-					  table_schema=schema)
+						columns=[options.rcol, options.wcol, options.fcol,
+								'ANTENNA1', 'ANTENNA2', 'TIME'],
+						chunks=chunks,
+						group_cols=['FIELD_ID', 'DATA_DESC_ID', 'SCAN_NUMBER'],
+						table_schema=schema)
 
 	if options.use_corrs is None:
 		print('Using only diagonal correlations')

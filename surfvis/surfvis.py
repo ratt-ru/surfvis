@@ -8,6 +8,7 @@ import pyrap.tables
 import os
 import sys
 import numpy
+from daskms import xds_from_ms
 
 
 def gi(message):
@@ -134,7 +135,7 @@ def main():
 
 		fieldname = sourcenames[fieldid]
 
-		# Make a list of baseline pairs based on the antena selections
+		# Make a list of baseline pairs based on the antenna selections
 		baselines = []
 		if antenna1 != -1 and antenna2 != -1:
 			baselines = [(antenna1,antenna2)]

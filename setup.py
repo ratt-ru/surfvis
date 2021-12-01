@@ -8,6 +8,14 @@ requirements = [
                 'matplotlib',
                 'python-casacore',
                 'argparse',
+                'ipython',
+                'codex-africanus[dask]',
+                'astropy',
+                'scipy',
+
+                "dask-ms[xarray, zarr]"
+                "@git+https://github.com/ska-sa/dask-ms.git"
+                "@master",
             ]
 
 
@@ -30,6 +38,8 @@ setup(
      entry_points='''
                     [console_scripts]
                     surfvis=surfvis.surfvis:main
+                    surfchi2=surfvis.surfchi2:main
+                    flagchi2=surfvis.flagchi2:main
      '''
      ,
  )

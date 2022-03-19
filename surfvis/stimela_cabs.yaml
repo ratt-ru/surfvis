@@ -1,0 +1,6 @@
+cabs:
+  'surfvis.surfchi2':
+    command: (surfvis.surfchi2)surfchi2
+
+    _include:
+      - (surfvis.parser)surfchi2.yaml

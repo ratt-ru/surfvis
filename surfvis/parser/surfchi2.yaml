@@ -1,0 +1,44 @@
+inputs:
+  ms:
+    dtype: MS
+    required: true
+    info: "Measurement set name"
+  rcol:
+    dtype: str
+    default: RESIDUAL
+    info: "Residual column in MS"
+  wcol:
+    dtype: str
+    default: WEIGHT_SPECTRUM
+    info: "Weight column in MS"
+  fcol:
+    dtype: str
+    default: FLAG
+    info: "Flag column in MS"
+  dataout:
+    dtype: str
+    default: ''
+    info: "Where to store intermediate data products"
+  imagesout:
+    dtype: str
+    info: 'Output folder to place images. If None (default) no plots are saved.'
+  ntimes:
+    dtype: int
+    default: -1
+    info: 'Number of unique times in a chunk'
+  nfreqs:
+    dtype: int
+    default: -1
+    info: 'Number of frequencies in a chunk'
+  nthreads:
+    dtype: int
+    default: 8
+    info: 'Number of dask threads to use'
+  use_corrs:
+    dtype: str
+    default: '0,-1'
+    info: 'Comma seprated list of correlation numbers to use (do not use spaces).
+          Default = diagonal correlations'
+
+outputs:
+  {}

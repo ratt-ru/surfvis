@@ -12,10 +12,15 @@ requirements = [
                 'codex-africanus[dask]',
                 'astropy',
                 'scipy',
+                'dask-ms[xarray, zarr]',
+                'click',
+                'pyscilog >= 0.1.2',
+                'omegaconf',
 
-                "dask-ms[xarray, zarr]"
-                "@git+https://github.com/ska-sa/dask-ms.git"
-                "@master",
+                "scabha"
+                "@git+https://github.com/caracal-pipeline/scabha2.git"
+                "@alias-cleanup",
+
             ]
 
 
@@ -35,11 +40,10 @@ setup(
          "License :: OSI Approved :: MIT License",
          "Operating System :: OS Independent",
      ],
-     entry_points='''
-                    [console_scripts]
-                    surfvis=surfvis.surfvis:main
-                    surfchi2=surfvis.surfchi2:main
-                    flagchi2=surfvis.flagchi2:main
-     '''
+     entry_points={'console_scripts':[
+        'surfvis = surfvis.main:cli'
+        ]
+
+     }
      ,
  )

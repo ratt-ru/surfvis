@@ -26,8 +26,8 @@ def create_parser():
                       help='Weight column (default = WEIGHT_SPECTRUM)')
     parser.add_option('--fcol', default='FLAG',
                       help='Flag column (default = FLAG)')
-    parser.add_option('--sigma', default=10, type=float,
-                      help='chisq threshold (default = 25)')
+    parser.add_option('--sigma', default=3, type=float,
+                      help='chisq threshold (default = 3)')
     parser.add_option('--nthreads', default=4, type=int,
                       help='Number of dask threads to use')
     parser.add_option('--nrows', default=10000, type=int,
@@ -43,7 +43,7 @@ def main():
 
     # Some error trapping
     if len(args) != 1:
-        print('Please specify a single Measurement Set to plot.')
+        print('Please specify a single Measurement set to flag.')
         sys.exit(-1)
     else:
         msname = args[0].rstrip('/')
@@ -80,7 +80,7 @@ def main():
     for i, ds in enumerate(xds):
         resid = ds.get(options.rcol).data
         if options.scol is not None:
-            sigma = ds.get(options.wcol).data
+            sigma = ds.get(options.scol).data
             weight = 1/sigma**2
         else:
             weight = ds.get(options.wcol).data

@@ -12,10 +12,8 @@ requirements = [
                 'codex-africanus[dask]',
                 'astropy',
                 'scipy',
-
-                "dask-ms[xarray, zarr]"
-                "@git+https://github.com/ska-sa/dask-ms.git"
-                "@master",
+                'dask-ms[xarray, zarr]',
+                'pytest >= 6.2.2',
             ]
 
 
@@ -24,11 +22,12 @@ setup(
      version=surfvis.__version__,
      author="Ian Heywood",
      author_email="ianh@astro.ox.ac.uk",
-     description="Per-baseline time freq plots",
+     description="Per-baseline time/freq and Chi-Square plots",
      long_description=long_description,
      long_description_content_type="text/markdown",
-     url="https://github.com/IanHeywood/surfvis",
+     url="https://github.com/ratt-ru/surfvis",
      packages=find_packages(),
+     python_requires='>=3.7',
      install_requires=requirements,
      classifiers=[
          "Programming Language :: Python :: 3",

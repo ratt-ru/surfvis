@@ -34,7 +34,7 @@ jobs:
         run: python setup.py sdist bdist_wheel
 
       - name: Publish distribution 📦 to PyPI
-        uses: pypa/gh-action-pypi-publish@beta001
+        uses: pypa/gh-action-pypi-publish@master
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
         with:
           user: __token__

@@ -26,8 +26,10 @@ def create_parser():
                       help='Weight column (default = WEIGHT_SPECTRUM)')
     parser.add_option('--fcol', default='FLAG',
                       help='Flag column (default = FLAG)')
-    parser.add_option('--sigma', default=3, type=float,
-                      help='chisq threshold (default = 3)')
+    parser.add_option('--flag-above', default=3, type=float,
+                      help='flag data with chisq above this value (default = 3)')
+    parser.add_option('--unflag-below', default=1.15, type=float,
+                      help='unflag data with chisq below this value (default = 1.15)')
     parser.add_option('--nthreads', default=4, type=int,
                       help='Number of dask threads to use')
     parser.add_option('--nrows', default=10000, type=int,
@@ -51,7 +53,7 @@ def main():
     schema = {}
     schema[options.rcol] = {'dims': ('chan', 'corr')}
     schema[options.fcol] = {'dims': ('chan', 'corr')}
-    columns = [options.rcol, options.fcol]
+    columns = [options.rcol, options.fcol, 'FLAG_ROW']
     if options.scol is not None:
         schema[options.scol] = {'dims': ('chan', 'corr')}
         columns.append(options.scol)
@@ -86,12 +88,20 @@ def main():
             weight = ds.get(options.wcol).data
         flag = ds.get(options.fcol).data
 
-        uflag = flagchisq(resid, weight, flag, tuple(use_corrs), sigma=options.sigma)
+        uflag = flagchisq(resid, weight, flag, tuple(use_corrs),
+                          flag_above=options.flag_above,
+                          unflag_below=options.unflag_below)
 
         out_ds = ds.assign(**{options.fcol: (("row", "chan", "corr"), uflag)})
+
+        # update FLAG_ROW
+        flag_row = da.all(uflag.rechunk({'1':-1, '2':-1}), axis=(1,2))
+
+        out_ds = ds.assign(**{'FLAG_ROW': (("row",), flag_row)})
+
         out_data.append(out_ds)
 
-    writes = xds_to_table(out_data, msname, columns=[options.fcol])
+    writes = xds_to_table(out_data, msname, columns=[options.fcol, 'FLAG_ROW'])
 
     with ProgressBar():
         dask.compute(writes)

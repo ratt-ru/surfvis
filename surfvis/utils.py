@@ -95,20 +95,21 @@ def _surfchisq(resid, weight, flag, ant1, ant2,
     return out
 
 
-def flagchisq(resid, weight, flag, use_corrs, sigma=25):
+def flagchisq(resid, weight, flag, use_corrs, flag_above, unflag_below):
 
     res = da.blockwise(_flagchisq, 'rfc',
                        resid, 'rfc',
                        weight, 'rfc',
                        flag, 'rfc',
                        use_corrs, None,
-                       sigma, None,
+                       flag_above, None,
+                       unflag_below, None,
                        dtype=bool)
     return res
 
 
 @njit(fastmath=True, nogil=True)
-def _flagchisq(resid, weight, flag, use_corrs, sigma):
+def _flagchisq(resid, weight, flag, use_corrs, flag_above, unflag_below):
     nrow, nchan, ncorr = resid.shape
     sigmasq = sigma**2
     for r in range(nrow):
@@ -117,8 +118,8 @@ def _flagchisq(resid, weight, flag, use_corrs, sigma):
                 res = resid[r, f, c]
                 w = weight[r, f, c]
                 chi2 = (np.conj(res) * w * res).real
-                if chi2 > sigmasq or chi2 == 0:
+                if chi2 > flag_above or chi2 == 0:
                     flag[r, f, c] = True
-                else:
+                elif chi2 <= unflag_below :
                     flag[r, f, c] = False
     return flag

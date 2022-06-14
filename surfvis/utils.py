@@ -111,7 +111,6 @@ def flagchisq(resid, weight, flag, use_corrs, flag_above, unflag_below):
 @njit(fastmath=True, nogil=True)
 def _flagchisq(resid, weight, flag, use_corrs, flag_above, unflag_below):
     nrow, nchan, ncorr = resid.shape
-    sigmasq = sigma**2
     for r in range(nrow):
         for f in range(nchan):
             for c in use_corrs:

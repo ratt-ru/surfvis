@@ -95,7 +95,7 @@ def main():
         out_ds = ds.assign(**{options.fcol: (("row", "chan", "corr"), uflag)})
 
         # update FLAG_ROW
-        flag_row = da.all(uflag.rechunk({'1':-1, '2':-1}), axis=(1,2))
+        flag_row = da.all(uflag.rechunk({1:-1, 2:-1}), axis=(1,2))
 
         out_ds = ds.assign(**{'FLAG_ROW': (("row",), flag_row)})
 

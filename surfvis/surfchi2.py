@@ -25,14 +25,16 @@ def create_parser():
     parser.add_option('--rcol', default='RESIDUAL',
                       help='Residual column (default = RESIDUAL)')
     parser.add_option('--wcol', default='WEIGHT_SPECTRUM',
-                      help='Weight column (default = WEIGHT_SPECTRUM)')
+                      help='Weight column (default = WEIGHT_SPECTRUM). '
+                      'The special value SIGMA_SPECTRUM can be passed to '
+                      'initialise the weights as 1/sigma**2')
     parser.add_option('--fcol', default='FLAG',
                       help='Flag column (default = FLAG)')
     parser.add_option('--dataout', default='',
                       help='Output name of zarr dataset')
-    parser.add_option('--imagesout', default=None,
+    parser.add_option('--imagesout', default='',
                       help='Output folder to place images. '
-                             'If None (default) no plots are saved')
+                            'Saved in CWD/chi2 by default. ')
     parser.add_option('--nthreads', default=4, type=int,
                       help='Number of dask threads to use')
     parser.add_option('--ntimes', default=-1, type=int,
@@ -53,6 +55,13 @@ def main():
     if os.path.isdir(options.dataout):
         print(f"Removing existing {options.dataout} folder")
         os.system(f"rm -r {options.dataout}")
+
+    if options.imagesout == '':
+        options.imagesout = os.getcwd() + '/chi2'
+
+    if os.path.isdir(options.imagesout):
+        print(f"Removing existing {options.imagesout} folder")
+        os.system(f"rm -r {options.imagesout}")
 
     # Some error trapping
     if len(args) != 1:

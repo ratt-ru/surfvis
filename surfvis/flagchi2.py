@@ -20,10 +20,10 @@ def create_parser():
     parser = OptionParser(usage='%prog [options] msname')
     parser.add_option('--rcol', default='RESIDUAL',
                       help='Residual column (default = RESIDUAL)')
-    parser.add_option('--scol',
-                      help='sigma column to use. Overides wcol if provided.')
     parser.add_option('--wcol', default='WEIGHT_SPECTRUM',
-                      help='Weight column (default = WEIGHT_SPECTRUM)')
+                      help='Weight column (default = WEIGHT_SPECTRUM). '
+                      'The special value SIGMA_SPECTRUM can be passed to '
+                      'initialise the weights as 1/sigma**2')
     parser.add_option('--fcol', default='FLAG',
                       help='Flag column (default = FLAG)')
     parser.add_option('--flag-above', default=3, type=float,
@@ -53,14 +53,8 @@ def main():
     schema = {}
     schema[options.rcol] = {'dims': ('chan', 'corr')}
     schema[options.fcol] = {'dims': ('chan', 'corr')}
-    columns = [options.rcol, options.fcol, 'FLAG_ROW']
-    if options.scol is not None:
-        schema[options.scol] = {'dims': ('chan', 'corr')}
-        columns.append(options.scol)
-    else:
-        schema[options.wcol] = {'dims': ('chan', 'corr')}
-        columns.append(options.wcol)
-
+    schema[options.wcol] = {'dims': ('chan', 'corr')}
+    columns = [options.wcol, options.rcol, options.fcol, 'FLAG_ROW']
 
     xds = xds_from_ms(msname,
                       columns=columns,
@@ -81,9 +75,8 @@ def main():
     out_data = []
     for i, ds in enumerate(xds):
         resid = ds.get(options.rcol).data
-        if options.scol is not None:
-            sigma = ds.get(options.scol).data
-            weight = 1/sigma**2
+        if options.wcol == 'SIGMA_SPECTRUM':
+            weight = 1.0/ds.get(options.wcol).data**2
         else:
             weight = ds.get(options.wcol).data
         flag = ds.get(options.fcol).data

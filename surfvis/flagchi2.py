@@ -13,7 +13,9 @@ import dask
 import dask.array as da
 from dask.diagnostics import ProgressBar
 from surfvis.utils import flagchisq
-from daskms import xds_from_ms, xds_from_table, xds_to_table
+from daskms import xds_from_storage_ms as xds_from_ms
+from daskms import xds_from_storage_table as xds_from_table
+from daskms import xds_to_storage_table as xds_to_table
 
 
 def create_parser():
@@ -38,6 +40,8 @@ def create_parser():
                       help='Number of frequencies in a chunk (default=128)')
     parser.add_option("--use-corrs", type=str,
                       help='Comma seprated list of correlations to use (do not use spaces)')
+    parser.add_option("--respect-ants", type=str,
+                      help='Comma seprated list of antennas to respect (do not use spaces)')
     return parser
 
 def main():
@@ -52,12 +56,12 @@ def main():
 
     schema = {}
     schema[options.rcol] = {'dims': ('chan', 'corr')}
-    schema[options.fcol] = {'dims': ('chan', 'corr')}
     schema[options.wcol] = {'dims': ('chan', 'corr')}
-    columns = [options.wcol, options.rcol, options.fcol, 'FLAG_ROW']
+    schema[options.fcol] = {'dims': ('chan', 'corr')}
 
     xds = xds_from_ms(msname,
-                      columns=columns,
+                      columns=[options.rcol, options.wcol, options.fcol,
+                              'ANTENNA1', 'ANTENNA2'],
                       chunks={'row': options.nrows, 'chan': options.nfreqs},
                       group_cols=['FIELD_ID', 'DATA_DESC_ID', 'SCAN_NUMBER'],
                       table_schema=schema)
@@ -69,8 +73,13 @@ def main():
         else:
             use_corrs = [0]
     else:
-        use_corrs = list(map(int, options.use_corrs.split(',')))
+        use_corrs = tuple(map(int, options.use_corrs.split(',')))
         print(f"Using correlations {use_corrs}")
+
+    if options.respect_ants is not None:
+        rants = list(map(int, options.respect_ants.split(',')))
+    else:
+        rants = []
 
     out_data = []
     for i, ds in enumerate(xds):
@@ -80,10 +89,16 @@ def main():
         else:
             weight = ds.get(options.wcol).data
         flag = ds.get(options.fcol).data
+        ant1 = ds.ANTENNA1.data
+        ant2 = ds.ANTENNA2.data
 
-        uflag = flagchisq(resid, weight, flag, tuple(use_corrs),
+        # import pdb; pdb.set_trace()
+
+        uflag = flagchisq(resid, weight, flag, ant1, ant2,
+                          use_corrs=tuple(use_corrs),
                           flag_above=options.flag_above,
-                          unflag_below=options.unflag_below)
+                          unflag_below=options.unflag_below,
+                          respect_ants=tuple(rants))
 
         out_ds = ds.assign(**{options.fcol: (("row", "chan", "corr"), uflag)})
 

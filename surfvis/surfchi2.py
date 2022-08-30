@@ -13,7 +13,8 @@ import dask
 import dask.array as da
 from dask.diagnostics import ProgressBar
 from surfvis.utils import surfchisq
-from daskms import xds_from_ms, xds_from_table
+from daskms import xds_from_storage_ms as xds_from_ms
+from daskms import xds_from_storage_table as xds_from_table
 from daskms.experimental.zarr import xds_from_zarr, xds_to_zarr
 # might make for cooler histograms but doesn't work out of the box
 from astropy.visualization import hist

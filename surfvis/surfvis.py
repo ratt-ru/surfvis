@@ -31,6 +31,7 @@ def create_parser():
     parser.add_option('-i','--i',dest='antenna1',help='Antenna 1: plot only this antenna',default=-1)
     parser.add_option('-j','--j',dest='antenna2',help='Antenna 2: use with -i to plot a single baseline',default=-1)
     parser.add_option('--noflags',dest='noflags',help='Disable flagged data overlay',action='store_true',default=False)
+    parser.add_option('--doacorr',dest='noflags',help='Disable flagged data overlay',action='store_true',default=False)
     parser.add_option('--scale',dest='scale',help='Scale the image peak to this multiple of the per-corr min/max (default = scale image max to 5 sigma, this parameter is ignored for phase plots)',default=-1)
     parser.add_option('--cmap',dest='mycmap',help='Matplotlib colour map to use (default = jet)',default='jet')
     parser.add_option('-o','--opdir',dest='foldername',help='Output folder to store plots (default = msname___plots)',default='')
@@ -142,7 +143,7 @@ def main():
         elif antenna1 != -1:
             i = antenna1
             for j in usedants:
-                if i != j:
+                if i != j or options.doacorr:
                     pair = [i,j]
                     pair = sorted(pair)
                     if pair not in baselines:
@@ -154,7 +155,7 @@ def main():
         else:
             for i in usedants:
                 for j in usedants:
-                    if i != j:
+                    if i != j or options.doacorr:
                         pair = [i,j]
                         pair = sorted(pair)
                         if pair not in baselines:

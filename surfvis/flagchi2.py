@@ -34,9 +34,9 @@ def create_parser():
                       help='unflag data with chisq below this value (default = 1.15)')
     parser.add_option('--nthreads', default=4, type=int,
                       help='Number of dask threads to use')
-    parser.add_option('--nrows', default=10000, type=int,
+    parser.add_option('--nrows', default=100000, type=int,
                       help='Number of rows in each chunk (default=10000)')
-    parser.add_option('--nfreqs', default=128, type=int,
+    parser.add_option('--nfreqs', default=256, type=int,
                       help='Number of frequencies in a chunk (default=128)')
     parser.add_option("--use-corrs", type=str,
                       help='Comma seprated list of correlations to use (do not use spaces)')
@@ -53,6 +53,9 @@ def main():
         sys.exit(-1)
     else:
         msname = args[0].rstrip('/')
+
+    from multiprocessing.pool import ThreadPool
+    dask.config.set(pool=ThreadPool(options.nthreads))
 
     schema = {}
     schema[options.rcol] = {'dims': ('chan', 'corr')}

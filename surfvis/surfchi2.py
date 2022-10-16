@@ -71,6 +71,9 @@ def main():
     else:
         msname = args[0].rstrip('/')
 
+    from multiprocessing.pool import ThreadPool
+    dask.config.set(pool=ThreadPool(options.nthreads))
+
     # chunking info
     schema = {}
     schema[options.fcol] = {'dims': ('chan', 'corr')}

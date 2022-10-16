@@ -109,7 +109,9 @@ def main():
 
         out_data.append(out_ds)
 
-    writes = xds_to_table(out_data, msname, columns=[options.fcol, 'FLAG_ROW'])
+    writes = xds_to_table(out_data, msname,
+                          columns=[options.fcol, 'FLAG_ROW'],
+                          rechunk=True)
 
     with ProgressBar():
         dask.compute(writes)

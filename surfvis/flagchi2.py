@@ -106,7 +106,7 @@ def main():
         # update FLAG_ROW
         flag_row = da.all(uflag.rechunk({1:-1, 2:-1}), axis=(1,2))
 
-        out_ds = ds.assign(**{'FLAG_ROW': (("row",), flag_row)})
+        out_ds = out_ds.assign(**{'FLAG_ROW': (("row",), flag_row)})
 
         out_data.append(out_ds)
 

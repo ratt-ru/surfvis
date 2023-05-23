@@ -114,5 +114,4 @@ def main():
                           columns=[options.fcol, 'FLAG_ROW'],
                           rechunk=True)
 
-    with ProgressBar():
-        dask.compute(writes)
+    dask.compute(writes)

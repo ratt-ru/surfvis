@@ -204,8 +204,7 @@ def main():
         idts.append(idt)
 
 
-    with ProgressBar():
-        dask.compute(out_ds)
+    dask.compute(out_ds)
 
     # primitive plotting
     if options.imagesout is not None:

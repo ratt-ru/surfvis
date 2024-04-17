@@ -96,7 +96,7 @@ def _surfchisq(resid, weight, flag, ant1, ant2,
 
 
 def flagchisq(resid, weight, flag, ant1, ant2,
-              use_corrs=(), flag_above=5, unflag_below=1,
+              use_corrs=(), flag_above=5,
               respect_ants=()):
 
     # import pdb; pdb.set_trace()
@@ -109,7 +109,6 @@ def flagchisq(resid, weight, flag, ant1, ant2,
                        ant2, 'r',
                        use_corrs, None,
                        flag_above, None,
-                       unflag_below, None,
                        respect_ants, None,
                        dtype=bool)
     return res

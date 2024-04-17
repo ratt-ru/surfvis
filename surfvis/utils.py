@@ -117,7 +117,7 @@ def flagchisq(resid, weight, flag, ant1, ant2,
 
 @njit(fastmath=True, nogil=True)
 def _flagchisq(resid, weight, flag, ant1, ant2,
-               use_corrs, flag_above, unflag_below, respect_ants):
+               use_corrs, flag_above, respect_ants):
     nrow, nchan, ncorr = resid.shape
     for r in range(nrow):
         if ant1[r] in respect_ants or ant2[r] in respect_ants:
@@ -129,6 +129,4 @@ def _flagchisq(resid, weight, flag, ant1, ant2,
                 chi2 = (np.conj(res) * w * res).real
                 if chi2 > flag_above or chi2 == 0:
                     flag[r, f, :] = True
-                elif chi2 <= unflag_below :
-                    flag[r, f, :] = False
     return flag

@@ -128,7 +128,7 @@ def _flagchisq(resid, weight, flag, ant1, ant2,
                 w = weight[r, f, c]
                 chi2 = (np.conj(res) * w * res).real
                 if chi2 > flag_above or chi2 == 0:
-                    flag[r, f, c] = True
+                    flag[r, f, :] = True
                 elif chi2 <= unflag_below :
-                    flag[r, f, c] = False
+                    flag[r, f, :] = False
     return flag

@@ -30,8 +30,6 @@ def create_parser():
                       help='Flag column (default = FLAG)')
     parser.add_option('--flag-above', default=3, type=float,
                       help='flag data with chisq above this value (default = 3)')
-    parser.add_option('--unflag-below', default=1.15, type=float,
-                      help='unflag data with chisq below this value (default = 1.15)')
     parser.add_option('--nthreads', default=4, type=int,
                       help='Number of dask threads to use')
     parser.add_option('--nrows', default=250000, type=int,
@@ -98,7 +96,6 @@ def main():
         uflag = flagchisq(resid, weight, flag, ant1, ant2,
                           use_corrs=tuple(use_corrs),
                           flag_above=options.flag_above,
-                          unflag_below=options.unflag_below,
                           respect_ants=tuple(rants))
 
         out_ds = ds.assign(**{options.fcol: (("row", "chan", "corr"), uflag)})

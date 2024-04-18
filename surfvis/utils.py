@@ -96,7 +96,7 @@ def _surfchisq(resid, weight, flag, ant1, ant2,
 
 
 def flagchisq(resid, weight, flag, ant1, ant2,
-              use_corrs=(), flag_above=5, unflag_below=1,
+              use_corrs=(), flag_above=5,
               respect_ants=()):
 
     # import pdb; pdb.set_trace()
@@ -109,7 +109,6 @@ def flagchisq(resid, weight, flag, ant1, ant2,
                        ant2, 'r',
                        use_corrs, None,
                        flag_above, None,
-                       unflag_below, None,
                        respect_ants, None,
                        dtype=bool)
     return res
@@ -117,7 +116,7 @@ def flagchisq(resid, weight, flag, ant1, ant2,
 
 @njit(fastmath=True, nogil=True)
 def _flagchisq(resid, weight, flag, ant1, ant2,
-               use_corrs, flag_above, unflag_below, respect_ants):
+               use_corrs, flag_above, respect_ants):
     nrow, nchan, ncorr = resid.shape
     for r in range(nrow):
         if ant1[r] in respect_ants or ant2[r] in respect_ants:
@@ -128,7 +127,5 @@ def _flagchisq(resid, weight, flag, ant1, ant2,
                 w = weight[r, f, c]
                 chi2 = (np.conj(res) * w * res).real
                 if chi2 > flag_above or chi2 == 0:
-                    flag[r, f, c] = True
-                elif chi2 <= unflag_below :
-                    flag[r, f, c] = False
+                    flag[r, f, :] = True
     return flag

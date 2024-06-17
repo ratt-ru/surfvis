@@ -306,14 +306,15 @@ def makeplot(data, name, subt):
 
     rax = divider.append_axes("right", size="50%", pad=0.025)
     x = data[~ np.isnan(data)]
-    hist(x, bins='scott', ax=rax, histtype='stepfilled',
-         alpha=0.5, density=False)
-    rax.set_yticks([])
-    rax.tick_params(axis='y', which='both',
-                    bottom=False, top=False,
-                    labelbottom=False)
-    rax.tick_params(axis='x', which='both',
-                    length=1, width=1, labelsize=8)
+    if x.any():
+        hist(x, bins='scott', ax=rax, histtype='stepfilled',
+            alpha=0.5, density=False)
+        rax.set_yticks([])
+        rax.tick_params(axis='y', which='both',
+                        bottom=False, top=False,
+                        labelbottom=False)
+        rax.tick_params(axis='x', which='both',
+                        length=1, width=1, labelsize=8)
 
     fig.suptitle(subt, fontsize=20)
     plt.savefig(name, dpi=250)

@@ -27,7 +27,7 @@ setup(
      long_description_content_type="text/markdown",
      url="https://github.com/ratt-ru/surfvis",
      packages=find_packages(),
-     python_requires='>=3.7',
+     python_requires='>=3.10',
      install_requires=requirements,
      classifiers=[
          "Programming Language :: Python :: 3",

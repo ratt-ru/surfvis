@@ -8,7 +8,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from numba import njit
+import dask
 import dask.array as da
+import matplotlib as mpl
+mpl.rcParams.update({'font.size': 11, 'font.family': 'serif'})
+import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from astropy.visualization import hist
 
 def surf(p, q, gp, gq, data, resid, weight, flag, basename):
     """
@@ -43,7 +49,7 @@ def surfchisq(resid, weight, flag, ant1, ant2,
     return res
 
 
-@njit(fastmath=True, nogil=True)
+@njit(nogil=True)
 def _surfchisq(resid, weight, flag, ant1, ant2,
                rbin_idx, rbin_counts, fbin_idx, fbin_counts):
     nrow, nchan, ncorr = resid.shape
@@ -93,6 +99,78 @@ def _surfchisq(resid, weight, flag, ant1, ant2,
                         out[t, f, c, q, p] = out[t, f, c, p, q]
 
     return out
+
+
+def surfchisq_plot(resid, weight, flag, ant1, ant2, field, spw, scan, figname, subt):
+    resid, weight, flag, ant1, ant2 = dask.compute(
+        resid, weight, flag, ant1, ant2, scheduler='sync'
+    )
+    chi2, counts = _surfchisq_slice(resid, weight, flag, ant1, ant2)
+    nant = np.maximum(ant1.max(), ant2.max()) + 1
+    chi2_dof = np.zeros((nant, nant), dtype=float)
+    chi2_dof[counts>0] = chi2[counts>0]/counts[counts>0]
+    chi2_dof[counts<=0] = np.nan
+
+    fig = plt.figure()
+    ax = plt.gca()
+    im = ax.imshow(chi2_dof, cmap='inferno')
+    ax.set_xticks(np.arange(0, nant, 2))
+    ax.set_yticks(np.arange(nant))
+    ax.tick_params(axis='both', which='major',
+                      length=1, width=1, labelsize=4)
+
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("bottom", size="3%", pad=0.2)
+    cb = fig.colorbar(im, cax=cax, orientation="horizontal")
+    cb.outline.set_visible(False)
+    cb.ax.tick_params(length=1, width=1, labelsize=6, pad=0.1)
+
+    rax = divider.append_axes("right", size="50%", pad=0.025)
+    x = chi2_dof[counts>0]
+    if x.any():
+        hist(x, bins='scott', ax=rax, histtype='stepfilled',
+            alpha=0.5, density=False)
+        rax.set_yticks([])
+        rax.tick_params(axis='y', which='both',
+                        bottom=False, top=False,
+                        labelbottom=False)
+        rax.tick_params(axis='x', which='both',
+                        length=1, width=1, labelsize=8)
+
+    fig.suptitle(subt, fontsize=20)
+    plt.savefig(figname, dpi=250)
+    plt.close(fig)
+
+    return field, spw, scan, chi2, counts
+
+
+@njit(nogil=True)
+def _surfchisq_slice(resid, weight, flag, ant1, ant2):
+    nrow, nchan, ncorr = resid.shape
+    uant1 = np.unique(ant1)
+    uant2 = np.unique(ant2)
+    nant = np.maximum(uant1.max(), uant2.max()) + 1
+
+    # init output array
+    chi2 = np.zeros((nant, nant), dtype=np.float64)
+    counts = np.zeros((nant, nant), dtype=np.float64)
+
+    for p in uant1:
+        Ip = ant1 == p
+        for q in uant2:
+            Iq = ant2 == q
+            Ipq = Ip & Iq
+            R = resid[Ipq].ravel()
+            W = weight[Ipq].ravel()
+            F = flag[Ipq].ravel()
+            for i in range(R.size):
+                if not F[i] and p != q:
+                    chi2[p, q] += (np.conj(R[i]) * W[i] * R[i]).real
+                    counts[p, q] += 1.0
+            chi2[q, p] = chi2[p, q]
+            counts[q, p] = counts[p, q]
+
+    return chi2, counts
 
 
 def flagchisq(resid, weight, flag, ant1, ant2,

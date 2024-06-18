@@ -237,6 +237,7 @@ def main():
         count = counts[key]
         chi2_dof = np.zeros_like(val)
         chi2_dof[count>0] = val[count>0]/count[count>0]
+        chi2_dof[count<=0] = np.nan
 
         basename = foldername + f'/field{field}' + f'/spw{spw}'+ f'/scan{scan}/'
         makeplot(chi2_dof, basename + f'combined.png',

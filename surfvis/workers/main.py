@@ -1,10 +1,8 @@
 # flake8: noqa
 import click
-from pfb import logo
 
 @click.group()
 def cli():
-    logo()
     pass
 
 

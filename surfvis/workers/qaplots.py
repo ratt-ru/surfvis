@@ -2,16 +2,17 @@
 import os
 import sys
 from contextlib import ExitStack
-from pfb.workers.main import cli
+from surfvis.workers.main import cli
 import click
 from omegaconf import OmegaConf
 import pyscilog
 pyscilog.init('pfb')
 log = pyscilog.get_logger('INIT')
 import time
+import fsspec
 
 from scabha.schema_utils import clickify_parameters
-from pfb.parser.schemas import schema
+from surfvis.parser.schemas import schema
 
 
 @cli.command(context_settings={'show_default': True})
@@ -21,7 +22,20 @@ def qaplots(**kw):
     Quality assurance plots
     '''
     opts = OmegaConf.create(kw)
-    basedir = opts.ouput_folder
+
+    if '://' in opts.output_folder:
+        protocol = output_folder.split('://')[0]
+        prefix = f'{protocol}://'
+    else:
+        protocol = 'file'
+        prefix = ''
+
+    fs = fsspec.filesystem(protocol)
+    basedir = fs.expand_path('/'.join(output_folder.split('/')[:-1]))[0]
+    if not fs.exists(basedir):
+        fs.makedirs(basedir)
+
+    oname = basedir + f'/{opts.xcolumn}_{ycolumn}'
 
     import psutil
     nthreads = psutil.cpu_count(logical=True)
@@ -33,33 +47,10 @@ def qaplots(**kw):
     # if opts.product.upper() not in ["I","Q", "U", "V"]:
     #     raise NotImplementedError(f"Product {opts.product} not yet supported")
 
-    from daskms.fsspec_store import DaskMSStore
-    msnames = []
-    for ms in opts.ms:
-        msstore = DaskMSStore(ms.rstrip('/'))
-        mslist = msstore.fs.glob(ms.rstrip('/'))
-        try:
-            assert len(mslist) > 0
-            msnames.append(*list(map(msstore.fs.unstrip_protocol, mslist)))
-        except:
-            raise ValueError(f"No MS at {ms}")
-    opts.ms = msnames
-    if opts.gain_table is not None:
-        gainnames = []
-        for gt in opts.gain_table:
-            gainstore = DaskMSStore(gt.rstrip('/'))
-            gtlist = gainstore.fs.glob(gt.rstrip('/'))
-            try:
-                assert len(gtlist) > 0
-                gainnames.append(*list(map(gainstore.fs.unstrip_protocol, gtlist)))
-            except Exception as e:
-                raise ValueError(f"No gain table  at {gt}")
-        opts.gain_table = gainnames
-
     OmegaConf.set_struct(opts, True)
 
     timestamp = time.strftime("%Y%m%d-%H%M%S")
-    logname = f'{str(opts.log_directory)}/init_{timestamp}.log'
+    logname = f'{str(basedir)}/qaplots_{timestamp}.log'
     pyscilog.log_to_file(logname)
     print(f'Logs will be written to {logname}', file=log)
 

@@ -28,11 +28,11 @@ codex-africanus = {extras = ["dask", "scipy", "astropy", "python-casacore"], ver
 dask-ms = {extras = ["s3", "xarray", "zarr"], version = ">=0.2.22"}
 tbb = ">=2021.13.1"
 bokeh = ">=3.1.0"
-datashader
-holoviews
-colorcet
-pyscilog = ">=0.1.2"
-psutil
+datashader = ">= 0.16.3"
+holoviews = ">= 1.20.0"
+colorcet = ">=3.1.0"
+psutil = ">=5.9.8"
+matplotlib = ">= 3.9.2"
 
 [tool.poetry.scripts]
 svis = "surfvis.workers.main:cli"

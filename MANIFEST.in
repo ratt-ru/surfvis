@@ -1,0 +1,3 @@
+include surfvis/stimela_cabs.yaml
+include surfvis/parser/*.yml
+include surfvis/parser/*.yaml

@@ -1,0 +1,8 @@
+svis.qaplots:
+  command: surfvis.workers.qaplots.qaplots
+  flavour: python
+  policies:
+    pass_missing_as_none: true
+
+  _include:
+    - (.)qaplots.yaml

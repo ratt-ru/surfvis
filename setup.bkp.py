@@ -6,14 +6,16 @@ with open("README.md", "r") as fh:
 
 requirements = [
                 'matplotlib',
-                'python-casacore',
                 'argparse',
                 'ipython',
-                'codex-africanus[dask]',
-                'astropy',
-                'scipy',
-                'dask-ms[xarray, zarr]',
-                'pytest >= 6.2.2',
+                'codex-africanus[complete] >= 0.4.1',
+                'dask-ms[xarray, zarr, s3] >= 0.4.2',
+                'pytest >= 8.0.0',
+                'datashader',
+                'holoviews',
+                'colorcet',
+                'bokeh >= 3.1.0',
+                'Click >= 8.1'
             ]
 
 
@@ -22,7 +24,7 @@ setup(
      version=surfvis.__version__,
      author="Ian Heywood",
      author_email="ianh@astro.ox.ac.uk",
-     description="Per-baseline time/freq and Chi-Square plots",
+     description="Collection of visibility data inspection tools",
      long_description=long_description,
      long_description_content_type="text/markdown",
      url="https://github.com/ratt-ru/surfvis",

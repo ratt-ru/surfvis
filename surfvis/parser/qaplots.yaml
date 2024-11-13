@@ -1,0 +1,99 @@
+inputs:
+  ms:
+    dtype: List[URI]
+    required: true
+    abbreviation: ms
+    info:
+      Path to measurement set
+  output-folder:
+    dtype: Directory
+    required: true
+    abbreviation: out
+    info:
+      Folder in which to store the output
+  scans:
+    dtype: Optional[List[int]]
+    info:
+      List of SCAN_NUMBERS to image. Defaults to all.
+      Input as comma separated list 0,2 if running from CLI
+  ddids:
+    dtype: Optional[List[int]]
+    info:
+      List of DATA_DESC_ID's to images. Defaults to all.
+      Input as comma separated list 0,2 if running from CLI
+  fields:
+    dtype: Optional[List[int]]
+    info:
+      List of FIELD_ID's to image. Defaults to all.
+      Input as comma separated list 0,2 if running from CLI
+  freq-range:
+    dtype: Optional[str]
+    info:
+      Frequency range to image in Hz.
+      Specify as a string with colon delimiter eg. '1e9:1.1e9'
+  overwrite:
+    dtype: bool
+    default: false
+    info:
+      Allow overwrite of output xds
+  xcolumn:
+    dtype: str
+    default: 'DATA:amp'
+    abbreviation: x
+    info:
+      What to plot on the x-axis.
+      Must be a valid column name followed by a colon and one of amp:phase:image:real
+  ycolumn:
+    dtype: str
+    abbreviation: y
+    info:
+      What to plot on the x-axis.
+      Must be a valid column name followed by a colon and one of amp:phase:image:real
+  flag-column:
+    dtype: str
+    default: FLAG
+    abbreviation: fc
+    info:
+      Column containing data flags. Must be the same across MSs
+  gain-table:
+    dtype: List[URI]
+    info:
+      Path to Quartical gain table containing NET gains.
+      There must be a table for each MS and glob(ms) and
+      glob(gt) should match up when running from CLI.
+  integrations-per-chunk:
+    dtype: int
+    abbreviation: ipi
+    default: -1
+    info:
+      Number of time integrations per image.
+      Default (-1, 0, None) -> dataset per scan.
+  channels-per-chunk:
+    dtype: int
+    abbreviation: cpi
+    default: 32
+    info:
+      Number of channels per image for degridding resolution.
+      Any of (-1, 0, None) implies single dataset per spw.
+  progressbar:
+    dtype: bool
+    default: true
+    info:
+      Display progress.
+      Use --no-progressbar to deactivate.
+  nworkers:
+    dtype: int
+    default: 1
+    info:
+      Number of Dask workers
+  nthreads:
+    dtype: int
+    default: 16
+    info:
+      Number of threads per worker
+
+outputs:
+  {}
+
+policies:
+  pass_missing_as_none: true

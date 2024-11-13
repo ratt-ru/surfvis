@@ -1,0 +1,44 @@
+[tool.poetry]
+name = "surfvis"
+version = "0.0.2"
+description = "Collection of visibility data inspection tools"
+authors = ["Landman Bester <lbester@sarao.ac.za>", "Ian Heywood <ianh@astro.ox.ac.uk>"]
+license = "MIT"
+readme = "README.md"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Astronomy"
+]
+packages = [{include = "surfvis"}]
+
+[tool.poetry.dependencies]
+python = ">=3.10, <3.12"
+pytest = ">=8.0.0"
+pyscilog = ">=0.1.2"
+Click = ">=8.1"
+stimela = { git = "https://github.com/caracal-pipeline/stimela.git", branch = "clickify_missing_as_none" }
+dask = ">=2023.1.1, <2024.11.0"
+codex-africanus = {extras = ["dask", "scipy", "astropy", "python-casacore"], version = ">=0.4.1"}
+dask-ms = {extras = ["s3", "xarray", "zarr"], version = ">=0.2.22"}
+tbb = ">=2021.13.1"
+bokeh = ">=3.1.0"
+datashader
+holoviews
+colorcet
+pyscilog = ">=0.1.2"
+psutil
+
+[tool.poetry.scripts]
+svis = "surfvis.workers.main:cli"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+## add section for dev component which installs builder and Dockerfiles

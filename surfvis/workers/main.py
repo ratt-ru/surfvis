@@ -6,7 +6,7 @@ def cli():
     pass
 
 
-from surfvis.workers import (surfchi2, flagchi2, qaplots)
+from surfvis.workers import (surfchi2, flagchi2, phaseball)
 
 if __name__ == '__main__':
     cli()

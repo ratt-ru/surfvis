@@ -26,29 +26,22 @@ inputs:
     info:
       List of FIELD_ID's to image. Defaults to all.
       Input as comma separated list 0,2 if running from CLI
-  freq-range:
-    dtype: Optional[str]
+  combine-scans:
+    dtype: bool
+    default: true
     info:
-      Frequency range to image in Hz.
-      Specify as a string with colon delimiter eg. '1e9:1.1e9'
+      Combine all scans
   overwrite:
     dtype: bool
     default: false
     info:
       Allow overwrite of output xds
-  xcolumn:
+  column:
     dtype: str
     default: 'DATA:amp'
-    abbreviation: x
+    abbreviation: col
     info:
-      What to plot on the x-axis.
-      Must be a valid column name followed by a colon and one of (amp, phase, image, real)
-  ycolumn:
-    dtype: str
-    abbreviation: y
-    info:
-      What to plot on the x-axis.
-      Must be a valid column name followed by a colon and one of (amp, phase, image, real)
+      Which column to plot phaseball for.
   corrs:
     dtype: List[str]
     default: '00,11'

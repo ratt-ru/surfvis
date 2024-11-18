@@ -1,8 +1,8 @@
-svis.qaplots:
-  command: surfvis.workers.qaplots.qaplots
+svis.phaseball:
+  command: surfvis.workers.phaseball.phaseball
   flavour: python
   policies:
     pass_missing_as_none: true
 
   _include:
-    - (.)qaplots.yaml
+    - (.)phaseball.yaml

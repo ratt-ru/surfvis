@@ -77,20 +77,18 @@ def _phaseball(**kw):
     OmegaConf.set_struct(opts, True)
 
     import numpy as np
-    import dask
     import dask.array as da
     import dask.dataframe as dd
     import datashader
     import datashader.transfer_functions as tf
     from datashader.colors import Greys9, viridis
     import holoviews as hv
-    import hvplot.dask
     from typing import Optional, Tuple, Union
     import colorcet
     from daskms import xds_from_storage_ms as xds_from_ms
     import xarray as xr
     import matplotlib.pyplot as plt
-    # hv.extension('bokeh')
+    hv.extension('bokeh')
 
     columns = [opts.flag_column, 'FLAG_ROW',
                'ANTENNA1', 'ANTENNA2', 'TIME', opts.column]

@@ -1,6 +1,6 @@
 inputs:
   ms:
-    dtype: List[URI]
+    dtype: URI
     required: true
     abbreviation: ms
     info:
@@ -8,7 +8,7 @@ inputs:
   output-folder:
     dtype: Directory
     required: true
-    abbreviation: out
+    abbreviation: o
     info:
       Folder in which to store the output
   scans:
@@ -42,13 +42,18 @@ inputs:
     abbreviation: x
     info:
       What to plot on the x-axis.
-      Must be a valid column name followed by a colon and one of amp:phase:image:real
+      Must be a valid column name followed by a colon and one of (amp, phase, image, real)
   ycolumn:
     dtype: str
     abbreviation: y
     info:
       What to plot on the x-axis.
-      Must be a valid column name followed by a colon and one of amp:phase:image:real
+      Must be a valid column name followed by a colon and one of (amp, phase, image, real)
+  corrs:
+    dtype: List[str]
+    default: '00,11'
+    info:
+      Correlations to plot. Allowed values are '00', '01', '10', '11'
   flag-column:
     dtype: str
     default: FLAG
@@ -63,14 +68,14 @@ inputs:
       glob(gt) should match up when running from CLI.
   integrations-per-chunk:
     dtype: int
-    abbreviation: ipi
+    abbreviation: ipc
     default: -1
     info:
       Number of time integrations per image.
       Default (-1, 0, None) -> dataset per scan.
   channels-per-chunk:
     dtype: int
-    abbreviation: cpi
+    abbreviation: cpc
     default: 32
     info:
       Number of channels per image for degridding resolution.

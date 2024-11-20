@@ -4,14 +4,20 @@ mpl.rcParams.update({'font.size': 11, 'font.family': 'serif'})
 # mpl.use('Agg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from optparse import OptionParser
+from surfvis.workers.main import cli
+from omegaconf import OmegaConf
+import pyscilog
+pyscilog.init('svis')
+log = pyscilog.get_logger('SURFCHI2')
+import time
+import fsspec
+
 import os
 import sys
 import numpy as np
 import xarray as xr
 import dask
 import dask.array as da
-from dask.diagnostics import ProgressBar
 from surfvis.utils import surfchisq, surfchisq_plot
 from daskms import xds_from_storage_ms as xds_from_ms
 from daskms import xds_from_storage_table as xds_from_table
@@ -21,71 +27,49 @@ from astropy.visualization import hist
 from pathlib import Path
 import concurrent.futures as cf
 
+from scabha.schema_utils import clickify_parameters
+from surfvis.parser.schemas import schema
 
-# COMMAND LINE OPTIONS
-def create_parser():
-    parser = OptionParser(usage='%prog [options] msname')
-    parser.add_option('--rcol', default='RESIDUAL',
-                      help='Residual column (default = RESIDUAL)')
-    parser.add_option('--wcol', default='WEIGHT_SPECTRUM',
-                      help='Weight column (default = WEIGHT_SPECTRUM). '
-                      'The special value SIGMA_SPECTRUM can be passed to '
-                      'initialise the weights as 1/sigma**2')
-    parser.add_option('--fcol', default='FLAG',
-                      help='Flag column (default = FLAG)')
-    parser.add_option('--dataout', default='',
-                      help='Output name of zarr dataset')
-    parser.add_option('--imagesout', default='',
-                      help='Output folder to place images. '
-                            'Saved in CWD/chi2 by default. ')
-    parser.add_option('--nthreads', default=4, type=int,
-                      help='Number of dask threads to use')
-    parser.add_option('--ntimes', default=-1, type=int,
-                      help='Number of unique times in each chunk.')
-    parser.add_option('--nfreqs', default=128, type=int,
-                      help='Number of frequencies in a chunk.')
-    parser.add_option("--use-corrs", type=str,
-                      help='Comma seprated list of correlations to use (do '
-                      'not use spaces). Default = diagonal correlations')
-    return parser
 
-def main():
-    (options,args) = create_parser().parse_args()
+@cli.command(context_settings={'show_default': True})
+@clickify_parameters(schema.surfchi2)
+def surfchi2(**kw):
+    '''
+    Per baseline chi squared plots 
+    '''
+    opts = OmegaConf.create(kw)
+
 
     print('Input Options:')
-    for key, value in vars(options).items():
-        print('     %25s = %s' % (key, value))
+    for key, value in opts.items():
+        print('     %25s = %s' % (key, value), file=log)
 
-    if options.dataout == '':
-        options.dataout = os.getcwd() + '/chi2'
+    if opts.dataout == '':
+        opts.dataout = os.getcwd() + '/chi2'
 
-    if os.path.isdir(options.dataout):
-        print(f"Removing existing {options.dataout} folder")
-        os.system(f"rm -r {options.dataout}")
+    if os.path.isdir(opts.dataout):
+        print(f"Removing existing {opts.dataout} folder")
+        os.system(f"rm -r {opts.dataout}")
 
-    if options.imagesout == '':
-        options.imagesout = os.getcwd() + '/chi2'
+    if opts.imagesout == '':
+        opts.imagesout = os.getcwd() + '/chi2'
 
-    if os.path.isdir(options.imagesout):
-        print(f"Removing existing {options.imagesout} folder")
-        os.system(f"rm -r {options.imagesout}")
+    if os.path.isdir(opts.imagesout):
+        print(f"Removing existing {opts.imagesout} folder")
+        os.system(f"rm -r {opts.imagesout}")
 
     # Some error trapping
-    if len(args) != 1:
-        print('Please specify a single Measurement Set to plot.')
-        sys.exit(-1)
-    else:
-        msname = args[0].rstrip('/')
+    msname = opts.ms.rstrip('/')
 
     from multiprocessing.pool import ThreadPool
-    dask.config.set(pool=ThreadPool(options.nthreads))
+    dask.config.set(pool=ThreadPool(opts.nthreads))
 
     # chunking info
     schema = {}
-    schema[options.fcol] = {'dims': ('chan', 'corr')}
+    schema[opts.fcol] = {'dims': ('chan', 'corr')}
     xds = xds_from_ms(msname,
                       chunks={'row': -1},
-                      columns=['TIME', options.fcol],
+                      columns=['TIME', opts.fcol],
                       group_cols=['FIELD_ID', 'DATA_DESC_ID', 'SCAN_NUMBER'],
                       table_schema=schema)
 
@@ -101,19 +85,19 @@ def main():
     for ds in xds:
         time = ds.TIME.values
         ut, counts = np.unique(time, return_counts=True)
-        if options.ntimes in [0, -1]:
+        if opts.ntimes in [0, -1]:
             utpc = ut.size
         else:
-            utpc = options.ntimes
+            utpc = opts.ntimes
         row_chunks = [np.sum(counts[i:i+utpc])
                        for i in range(0, ut.size, utpc)]
 
         nchan = ds.chan.size
-        if options.nfreqs in [0, -1]:
-            options.nfreqs = nchan
+        if opts.nfreqs in [0, -1]:
+            opts.nfreqs = nchan
 
         # list per ds
-        chunks.append({'row': tuple(row_chunks), 'chan': options.nfreqs})
+        chunks.append({'row': tuple(row_chunks), 'chan': opts.nfreqs})
 
         ridx = np.zeros(len(row_chunks))
         ridx[1:] = np.cumsum(row_chunks)[0:-1]
@@ -132,38 +116,38 @@ def main():
         tf = ut[tidx + tcounts -1]
         tfs.append(tf)
 
-        fidx = np.arange(0, nchan, options.nfreqs)
+        fidx = np.arange(0, nchan, opts.nfreqs)
         fbin_idx.append(fidx)
         fidx2 = np.append(fidx, nchan)
         fcounts = fidx2[1:] - fidx2[0:-1]
         fbin_counts.append(fcounts)
 
     schema = {}
-    schema[options.rcol] = {'dims': ('chan', 'corr')}
-    schema[options.wcol] = {'dims': ('chan', 'corr')}
-    schema[options.fcol] = {'dims': ('chan', 'corr')}
+    schema[opts.rcol] = {'dims': ('chan', 'corr')}
+    schema[opts.wcol] = {'dims': ('chan', 'corr')}
+    schema[opts.fcol] = {'dims': ('chan', 'corr')}
 
     xds = xds_from_ms(msname,
-                      columns=[options.rcol, options.wcol, options.fcol,'ANTENNA1', 'ANTENNA2', 'TIME'],
+                      columns=[opts.rcol, opts.wcol, opts.fcol,'ANTENNA1', 'ANTENNA2', 'TIME'],
                       chunks=chunks,
                       group_cols=['FIELD_ID', 'DATA_DESC_ID', 'SCAN_NUMBER'],
                       table_schema=schema)
-    if options.use_corrs is None:
+    if opts.use_corrs is None:
         print('Using only diagonal correlations')
         if len(xds[0].corr) > 1:
             use_corrs = [0, -1]
         else:
             use_corrs = [0]
     else:
-        use_corrs = list(map(int, options.use_corrs.split(',')))
+        use_corrs = list(map(int, opts.use_corrs.split(',')))
         print(f"Using correlations {use_corrs}")
     ncorr = len(use_corrs)
 
     chi2s = {}
     counts = {}
     futures = []
-    foldername = options.imagesout.rstrip('/')
-    with cf.ProcessPoolExecutor(max_workers=options.nthreads) as executor:
+    foldername = opts.imagesout.rstrip('/')
+    with cf.ProcessPoolExecutor(max_workers=opts.nthreads) as executor:
         for i, ds in enumerate(xds):
             field = ds.FIELD_ID
             spw = ds.DATA_DESC_ID
@@ -190,12 +174,12 @@ def main():
                         dso = ds[{'row': Irow, 'chan': Inu}]
                         # import ipdb; ipdb.set_trace()
                         dso = dso.sel(corr=use_corrs)
-                        resid = dso.get(options.rcol).data
-                        if options.wcol == 'SIGMA_SPECTRUM':
-                            weight = 1.0/dso.get(options.wcol).data**2
+                        resid = dso.get(opts.rcol).data
+                        if opts.wcol == 'SIGMA_SPECTRUM':
+                            weight = 1.0/dso.get(opts.wcol).data**2
                         else:
-                            weight = dso.get(options.wcol).data
-                        flag = dso.get(options.fcol).data
+                            weight = dso.get(opts.wcol).data
+                        flag = dso.get(opts.fcol).data
                         ant1 = dso.ANTENNA1.data
                         ant2 = dso.ANTENNA2.data
                         t0 = tbin_idx[i][t]

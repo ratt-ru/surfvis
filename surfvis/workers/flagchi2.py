@@ -1,10 +1,5 @@
 #!/usr/bin/env python
-import matplotlib as mpl
-mpl.rcParams.update({'font.size': 11, 'font.family': 'serif'})
-# mpl.use('Agg')
-import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from optparse import OptionParser
+
 import os
 import sys
 import numpy as np
@@ -17,88 +12,77 @@ from daskms import xds_from_storage_ms as xds_from_ms
 from daskms import xds_from_storage_table as xds_from_table
 from daskms import xds_to_storage_table as xds_to_table
 
+from surfvis.workers.main import cli
+from omegaconf import OmegaConf
+import pyscilog
+pyscilog.init('svis')
+log = pyscilog.get_logger('FLAGCHI2')
+import time
+import fsspec
 
-def create_parser():
-    parser = OptionParser(usage='%prog [options] msname')
-    parser.add_option('--rcol', default='RESIDUAL',
-                      help='Residual column (default = RESIDUAL)')
-    parser.add_option('--wcol', default='WEIGHT_SPECTRUM',
-                      help='Weight column (default = WEIGHT_SPECTRUM). '
-                      'The special value SIGMA_SPECTRUM can be passed to '
-                      'initialise the weights as 1/sigma**2')
-    parser.add_option('--fcol', default='FLAG',
-                      help='Flag column (default = FLAG)')
-    parser.add_option('--flag-above', default=3, type=float,
-                      help='flag data with chisq above this value (default = 3)')
-    parser.add_option('--nthreads', default=4, type=int,
-                      help='Number of dask threads to use')
-    parser.add_option('--nrows', default=250000, type=int,
-                      help='Number of rows in each chunk (default=10000)')
-    parser.add_option('--nfreqs', default=512, type=int,
-                      help='Number of frequencies in a chunk (default=128)')
-    parser.add_option("--use-corrs", type=str,
-                      help='Comma seprated list of correlations to use (do not use spaces)')
-    parser.add_option("--respect-ants", type=str,
-                      help='Comma seprated list of antennas to respect (do not use spaces)')
-    return parser
 
-def main():
-    (options,args) = create_parser().parse_args()
+from scabha.schema_utils import clickify_parameters
+from surfvis.parser.schemas import schema
 
-    # Some error trapping
-    if len(args) != 1:
-        print('Please specify a single Measurement set to flag.')
-        sys.exit(-1)
-    else:
-        msname = args[0].rstrip('/')
+
+@cli.command(context_settings={'show_default': True})
+@clickify_parameters(schema.flagchi2)
+def flagchi2(**kw):
+    opts = OmegaConf.create(kw)
+
+    print('Input Options:')
+    for key, value in opts.items():
+        print('     %25s = %s' % (key, value), file=log)
+
+    msname = opts.ms.rstrip('/')
 
     from multiprocessing.pool import ThreadPool
-    dask.config.set(pool=ThreadPool(options.nthreads))
+    dask.config.set(pool=ThreadPool(opts.nthreads))
 
     schema = {}
-    schema[options.rcol] = {'dims': ('chan', 'corr')}
-    schema[options.wcol] = {'dims': ('chan', 'corr')}
-    schema[options.fcol] = {'dims': ('chan', 'corr')}
+    schema[opts.rcol] = {'dims': ('chan', 'corr')}
+    schema[opts.wcol] = {'dims': ('chan', 'corr')}
+    schema[opts.fcol] = {'dims': ('chan', 'corr')}
 
     xds = xds_from_ms(msname,
-                      columns=[options.rcol, options.wcol, options.fcol,
+                      columns=[opts.rcol, opts.wcol, opts.fcol,
                               'ANTENNA1', 'ANTENNA2'],
-                      chunks={'row': options.nrows, 'chan': options.nfreqs},
+                      chunks={'row': opts.nrows, 'chan': opts.nfreqs},
                       group_cols=['FIELD_ID', 'DATA_DESC_ID', 'SCAN_NUMBER'],
                       table_schema=schema)
 
-    if options.use_corrs is None:
+    if opts.use_corrs is None:
         print('Using only diagonal correlations')
         if len(xds[0].corr) > 1:
             use_corrs = [0, -1]
         else:
             use_corrs = [0]
     else:
-        use_corrs = tuple(map(int, options.use_corrs.split(',')))
+        use_corrs = tuple(map(int, opts.use_corrs.split(',')))
         print(f"Using correlations {use_corrs}")
 
-    if options.respect_ants is not None:
-        rants = list(map(int, options.respect_ants.split(',')))
+    if opts.respect_ants is not None:
+        rants = list(map(int, opts.respect_ants.split(',')))
     else:
         rants = []
 
     out_data = []
     for i, ds in enumerate(xds):
-        resid = ds.get(options.rcol).data
-        if options.wcol == 'SIGMA_SPECTRUM':
-            weight = 1.0/ds.get(options.wcol).data**2
+        resid = ds.get(opts.rcol).data
+        if opts.wcol == 'SIGMA_SPECTRUM':
+            weight = 1.0/ds.get(opts.wcol).data**2
         else:
-            weight = ds.get(options.wcol).data
-        flag = ds.get(options.fcol).data
+            weight = ds.get(opts.wcol).data
+        flag = ds.get(opts.fcol).data
         ant1 = ds.ANTENNA1.data
         ant2 = ds.ANTENNA2.data
 
         uflag = flagchisq(resid, weight, flag, ant1, ant2,
                           use_corrs=tuple(use_corrs),
-                          flag_above=options.flag_above,
+                          flag_above=opts.flag_above,
                           respect_ants=tuple(rants))
 
-        out_ds = ds.assign(**{options.fcol: (("row", "chan", "corr"), uflag)})
+        out_ds = ds.assign(**{opts.fcol: (("row", "chan", "corr"), uflag)})
 
         # update FLAG_ROW
         flag_row = da.all(uflag.rechunk({1:-1, 2:-1}), axis=(1,2))
@@ -108,7 +92,7 @@ def main():
         out_data.append(out_ds)
 
     writes = xds_to_table(out_data, msname,
-                          columns=[options.fcol, 'FLAG_ROW'],
+                          columns=[opts.fcol, 'FLAG_ROW'],
                           rechunk=True)
 
     with ProgressBar():

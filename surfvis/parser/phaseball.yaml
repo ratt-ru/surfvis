@@ -38,7 +38,7 @@ inputs:
       Allow overwrite of output xds
   column:
     dtype: str
-    default: 'DATA:amp'
+    default: 'CORRECTED_DATA'
     abbreviation: col
     info:
       Which column to plot phaseball for.

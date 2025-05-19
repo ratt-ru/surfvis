@@ -77,9 +77,6 @@ def main():
     else:
         msname = args[0].rstrip('/')
 
-    from multiprocessing.pool import ThreadPool
-    dask.config.set(pool=ThreadPool(options.nthreads))
-
     # chunking info
     schema = {}
     schema[options.fcol] = {'dims': ('chan', 'corr')}
@@ -163,7 +160,7 @@ def main():
     counts = {}
     futures = []
     foldername = options.imagesout.rstrip('/')
-    with cf.ProcessPoolExecutor(max_workers=options.nthreads) as executor:
+    with cf.ThreadPoolExecutor(max_workers=options.nthreads) as executor:
         for i, ds in enumerate(xds):
             field = ds.FIELD_ID
             spw = ds.DATA_DESC_ID

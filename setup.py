@@ -12,7 +12,7 @@ requirements = [
                 'codex-africanus[dask]',
                 'astropy',
                 'scipy',
-                'dask-ms[xarray, zarr]',
+                'dask-ms[xarray, zarr] >= 0.2.23',
                 'pytest >= 6.2.2',
             ]
 

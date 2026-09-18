@@ -3,7 +3,7 @@ type: index
 title: surfvis LLM wiki
 description: Progressive-disclosure listing of the in-repo knowledge bundle.
 timestamp: 2026-09-18
-last_verified_commit: 9276bd3
+last_verified_commit: 91fd17f
 ---
 
 # surfvis LLM wiki
@@ -22,10 +22,6 @@ repo — do not cite them.
 To assess staleness: `git diff <stamp>..HEAD -- <files the page covers>`.
 Maintenance rule (also in `CLAUDE.md`): if your change invalidates or extends
 a page, update the page and refresh its stamp **in the same session**.
-
-> The pages below were written against the working tree of the hip-cargo
-> conversion, which is the commit *after* the stamp above. Re-stamp them with
-> `git rev-parse --short HEAD` once that conversion lands.
 
 ## Pages
 

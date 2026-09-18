@@ -8,7 +8,7 @@ last_verified_commit: 91fd17f
 
 # Wiki changelog
 
-## 2026-09-18 — chi-squared browser
+## 2026-09-18 — chi-squared browser (verified at `6b8f4f7`)
 
 - **Added** `web-app.md` for `surfvis serve`: the zarr contract written by
   `chi2 --dataout`, the xarray-ms behaviour it relies on (partition schema,

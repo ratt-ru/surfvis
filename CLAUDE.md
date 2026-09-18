@@ -89,18 +89,35 @@ regenerate cabs, run `generate-function` back over the cab, adopt its output
 verbatim, regenerate cabs again, then test. Editing by hand and stopping there
 will fail the round-trip. See `docs/wiki/cli-contract.md` for the exact loop.
 
-**Required params are options, not positional args.** hip-cargo's reverse
-generator only emits `typer.Option`, so the MS is `--ms`, not a bare argument.
-The cab still says `positional: true`, which is correct — Stimela calls the core
-function, where it genuinely is positional.
+**The dialect is closed, and writing the cab is the easier direction.** A cab
+and a CLI module are two renderings of one definition; hip-cargo generates
+either from the other, and the round-trip test enforces the bijection. So a
+typer construct with no cab representation is not part of the language:
+`typer.Argument` and `typer.Option("-x", "--ex", ...)` both raise at parse time
+with a message naming the rule. Required params are therefore options (`--ms`,
+not a bare argument) and there are no short flags — properties of the format,
+not compromises. If editing generated Python feels like fighting the tool,
+write the YAML cab and run `generate-function` instead. Upstream:
+hip-cargo's `docs/wiki/cli-dialect.md`.
 
-**Never use a negative default in a CLI signature.** hip-cargo serialises `-1`
-as the *string* `'-1'` under a numeric dtype. Express "unset" as `| None = None`
-and honour a legacy `-1` in the core function. (Fixed in the pinned hip-cargo
-branch; the idiom stays because it is the better expression anyway.)
+**Prefer `| None = None` to a sentinel default.** surfvis uses it for `--i`,
+`--j`, `--scale`, `--ntimes`: it makes the cab nullable rather than
+sentinel-valued, and the core functions still honour an explicit `-1` so old
+command lines keep working. (A negative default also used to serialise as the
+*string* `'-1'` — hip-cargo #109, fixed on the pinned branch. The idiom is worth
+keeping on its own merits.)
 
-**Never put a colon in a multi-sentence `help=` string.** It produces
-unparseable cab YAML. A single-sentence help with a colon is fine.
+**Two help strings still emit silently-wrong cab YAML.** Verified against
+hip-cargo `0777fbc`:
+
+| `help=` | Result |
+|---|---|
+| ends in a colon, as the only sentence | `info` becomes a **dict** |
+| contains non-ASCII (`°`, `λ`, `μ`) | escape survives as literal `\xB0` |
+
+Multi-sentence help containing `": "`, `" #"` or a leading `"- "` raises at
+generation instead, which is fine. Non-ASCII is the one to watch — radio
+astronomy help text reaches for those characters.
 
 **hip-cargo is pinned to a git branch** (`fix-cab-yaml-emission`,
 landmanbester/hip-cargo#111). Consequences: **PyPI rejects direct URL
@@ -145,6 +162,18 @@ batch task. `generate-cabs` skips undecorated functions, which is what keeps
 
 **The `[web]` extra needs Python 3.11+** (xarray-ms). The batch commands still
 support 3.10, hence the environment marker in `pyproject.toml`.
+
+**A green test run proves less than it looks.** The heavy modules skip at
+*import*, so pytest reports one skip per module: a lightweight run says
+"10 passed, 2 skipped" while 17 tests did not run. `tests/test_suite_integrity.py`
+pins the per-module test counts statically so a deletion fails loudly; update
+those counts deliberately when adding or removing a test.
+
+**Expect a regeneration when hip-cargo #114 lands.** `generate-function` emits
+`MS = NewType("MS", Path)` while hip-cargo documents those types as UPath-backed
+— false for a remote URI, since `S3Path` is not a `pathlib.Path` subclass. The
+fix changes generated CLI source, so every `cli/*.py` here will need
+regenerating with it.
 
 ## Direction of travel
 

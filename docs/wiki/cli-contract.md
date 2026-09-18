@@ -51,25 +51,64 @@ uv run pytest tests/test_roundtrip.py
 
 Add a `test_roundtrip_<cmd>` case for every new command.
 
-Because the reverse generator only ever emits `typer.Option`, **required
-parameters are options, not positional CLI arguments** — hence `--ms` rather
-than a bare `MS` argument. The cab still records `policies: {positional: true}`,
-which is correct: `flavour: python` means Stimela calls the *core* function,
-where `ms` genuinely is the first positional argument.
+### Which side you write is free; the dialect is not
 
-## Two hip-cargo quirks this repo works around
+A cab and a CLI module are two renderings of one definition, and hip-cargo
+generates either from the other. **Writing the YAML cab and generating the CLI
+is the simpler direction and the recommended one** — the procedure above is for
+when you would rather edit Python. What you cannot do is hand-edit the
+generated side and stop there.
 
-1. **Negative defaults serialise as YAML strings.** `= -1` in a CLI signature
-   emits `default: '-1'` under an `dtype: int` — a string where Stimela wants an
-   int. surfvis therefore expresses every "unset" sentinel as `| None = None`
-   (`--i`, `--j`, `--scale`, `--ntimes`). The core functions still honour an
-   explicit `-1` for backwards compatibility, e.g. `ant1 = -1 if i is None else i`.
-2. **A colon in a multi-sentence `help=` produces invalid YAML.** hip-cargo
-   splits `help` into one YAML line per sentence, and single-quotes only the
-   sentence containing the colon, which breaks the block. Keep colons out of
-   any `help=` string that has more than one sentence — `"Antenna 1: plot only
-   this antenna. Defaults to all of them."` had to become `"Index of antenna 1.
-   Plot only this antenna. Defaults to all of them."`.
+That bijection is why the writable language is closed: a typer construct with no
+cab representation cannot survive the round trip. `typer.Argument` and
+`typer.Option("-x", "--ex", ...)` are both rejected at parse time, with a message
+naming the rule. So **required parameters are options, not positional CLI
+arguments** — `--ms`, not a bare `MS` — and flag names derive from the parameter
+name, so surfvis has no short flags. Those are properties of the format, not
+compromises this project made.
+
+The cab still records `policies: {positional: true}` for required inputs, which
+is correct and unrelated: `flavour: python` means Stimela calls the *core*
+function, where `ms` genuinely is the first positional argument.
+
+Upstream reference: hip-cargo's
+[`docs/wiki/cli-dialect.md`](https://github.com/landmanbester/hip-cargo/blob/main/docs/wiki/cli-dialect.md).
+
+## Help strings: what still breaks
+
+`format_info_fields` rewrites each `info:` value as text after `safe_dump` has
+already quoted it, splitting it into one line per sentence. It re-derives the
+quoting from a heuristic, so some help strings emerge wrong. Verified against
+hip-cargo `0777fbc` (the pinned branch), one parameter per case, `generate-cabs`
+run end to end:
+
+| `help=` | Result |
+|---|---|
+| `"Options are as follows:"` | **silent** — `info` loads as a *dict*, `{'Options are as follows': None}` |
+| `"Angle in degrees (°). Second sentence."` | **silent** — `info` is `'Angle in degrees (\xB0). Second sentence.'` |
+| `"Weights column. Options are as follows:"` | raises `ValueError` |
+| `"Use channel #3. Second sentence."` | raises |
+| `"- leading dash. Second sentence."` | raises |
+
+The two silent rows are the hazard; the rest fail loudly at generation, which is
+the `yaml.safe_load` guard doing its job. **Non-ASCII is the one most likely to
+bite here** — `safe_dump` defaults to `allow_unicode=False`, so `°`, `λ` and `μ`
+come back as a double-quoted scalar and the escape survives into the cab. Radio
+astronomy help text reaches for those characters.
+
+A colon is safe in a single-sentence help, and an apostrophe alongside it now
+round-trips correctly (it used to emerge as `don''t`). Ending a help string with
+a colon is not safe.
+
+## A fixed quirk worth keeping the shape of
+
+`= -1` in a CLI signature used to emit `default: '-1'` — a string under
+`dtype: int`. That was hip-cargo #109 and is fixed on the pinned branch. surfvis
+keeps `| None = None` for every "unset" sentinel (`--i`, `--j`, `--scale`,
+`--ntimes`) regardless, because it is the honest expression of "not set" and it
+makes the cab nullable rather than sentinel-valued. The core functions still
+honour an explicit `-1`, e.g. `ant1 = -1 if i is None else i`, so old command
+lines keep working.
 
 ## Per-command specifics
 

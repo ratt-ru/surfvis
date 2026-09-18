@@ -872,7 +872,7 @@ wheels = [
 [[package]]
 name = "hip-cargo"
 version = "0.3.0"
-source = { git = "https://github.com/landmanbester/hip-cargo.git?rev=fix-cab-yaml-emission#6d9dc04c5ae8ffcbddf240996313f3e24d900aad" }
+source = { git = "https://github.com/landmanbester/hip-cargo.git?rev=fix-cab-yaml-emission#0777fbc60d3c126b7780fc8c2d24483b9e9637e5" }
 dependencies = [
     { name = "fsspec" },
     { name = "libcst" },

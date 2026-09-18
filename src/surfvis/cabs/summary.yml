@@ -1,0 +1,19 @@
+cabs:
+  summary:
+    flavour: python
+    command: surfvis.core.summary.summary
+    name: summary
+    info:
+      List Measurement Set properties.
+    image: ghcr.io/ratt-ru/surfvis:latest
+    inputs:
+      ms:
+        info:
+          Measurement Set to summarise.
+        dtype: MS
+        required: true
+        policies:
+          positional: true
+        metadata:
+          rich_help_panel: Inputs
+    outputs: {}

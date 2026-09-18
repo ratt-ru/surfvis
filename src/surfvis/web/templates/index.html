@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>surfvis</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/htmx.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>surfvis</h1>
+    <code class="ms" title="{{ ms }}">{{ ms }}</code>
+  </header>
+
+  <section id="selectors">
+    {% include "_selectors.html" %}
+  </section>
+
+  <main>
+    <section id="heatmap"
+             hx-get="/heatmap?field={{ field }}&spw={{ spw }}&scan={{ scan }}&t={{ times[0] }}&f={{ freqs[0] }}&c={{ corrs[0] }}"
+             hx-trigger="load">
+      <p class="hint">Loading&hellip;</p>
+    </section>
+    <section id="waterfall">
+      <p class="hint">Click a cell in the grid to plot that baseline's waterfall.</p>
+    </section>
+  </main>
+</body>
+</html>

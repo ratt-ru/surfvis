@@ -1,0 +1,62 @@
+:root {
+  --bg: #12131a;
+  --panel: #1b1d27;
+  --line: #2c2f3d;
+  --text: #e6e7ee;
+  --muted: #9aa0b4;
+  --accent: #39ff14;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+header {
+  display: flex; align-items: baseline; gap: 1rem;
+  padding: 0.7rem 1rem; border-bottom: 1px solid var(--line);
+}
+header h1 { font-size: 1.05rem; margin: 0; letter-spacing: 0.04em; }
+.ms { color: var(--muted); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.controls {
+  display: flex; flex-wrap: wrap; gap: 0.9rem; align-items: flex-end;
+  padding: 0.7rem 1rem; border-bottom: 1px solid var(--line);
+}
+.controls.sub { border: 0; padding: 0 0 0.6rem; }
+.controls label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.controls label.check { flex-direction: row; align-items: center; gap: 0.35rem; text-transform: none; letter-spacing: 0; font-size: 0.8rem; }
+select {
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--line); border-radius: 4px; padding: 0.25rem 0.4rem; font-size: 0.85rem;
+}
+
+main { display: flex; flex-direction: column; gap: 1rem; padding: 1rem; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 0.9rem; }
+.panel-head h2 { margin: 0 0 0.15rem; font-size: 0.95rem; font-weight: 600; }
+.meta { margin: 0 0 0.7rem; color: var(--muted); font-size: 0.78rem; }
+.hint { color: var(--muted); padding: 1.2rem; margin: 0; }
+
+.heatmap-row { display: flex; gap: 1.2rem; align-items: flex-start; flex-wrap: wrap; }
+.grid-wrap { flex: 1 1 420px; min-width: 300px; }
+.grid {
+  display: grid; gap: 1px; width: 100%; max-width: 720px;
+  aspect-ratio: 1 / 1; background: var(--line);
+  border: 1px solid var(--line);
+}
+.grid i { display: block; cursor: pointer; }
+.grid i:hover { outline: 2px solid var(--accent); outline-offset: -1px; z-index: 2; position: relative; }
+.axis { color: var(--muted); font-size: 0.72rem; margin: 0.35rem 0 0; }
+
+.hist { margin: 0; flex: 0 0 auto; }
+.hist img { display: block; background: #fff; border-radius: 6px; }
+.hist figcaption { color: var(--muted); font-size: 0.72rem; margin-top: 0.3rem; text-align: center; }
+
+.waterfall { display: block; width: 100%; background: #fff; border-radius: 6px; }
+.swatch { display: inline-block; width: 0.8rem; height: 0.8rem; vertical-align: -1px; border: 2px solid var(--accent); }
+
+@media (max-width: 720px) { .heatmap-row { flex-direction: column; } }

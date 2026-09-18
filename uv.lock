@@ -1462,6 +1462,15 @@ wheels = [
 ]
 
 [[package]]
+name = "msv4-utils"
+version = "0.0.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ca/85/33638b948df2a5b115a955c67be0845cac532bef711a178060cf2d08883e/msv4_utils-0.0.3.tar.gz", hash = "sha256:681363c0e79454536ca748f4235b4b91cd0768433294b7c47575a1c0567d64ac", size = 10126, upload-time = "2026-05-20T07:19:58.139Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cb/c5/4eea0ca3fff078dabfbfa11fdf90b8578db62ac66186b1d599ce2f772171/msv4_utils-0.0.3-py3-none-any.whl", hash = "sha256:522e902cb5b8b322bad25d7434e7ffbc14e0e687dcb7ca23113c872305bd4efb", size = 7155, upload-time = "2026-05-20T07:19:56.844Z" },
+]
+
+[[package]]
 name = "nodeenv"
 version = "1.10.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2632,6 +2641,7 @@ full = [
 web = [
     { name = "fastapi" },
     { name = "jinja2" },
+    { name = "msv4-utils", marker = "python_full_version >= '3.11'" },
     { name = "uvicorn" },
     { name = "xarray-ms", marker = "python_full_version >= '3.11'" },
 ]
@@ -2657,6 +2667,7 @@ requires-dist = [
     { name = "hip-cargo", git = "https://github.com/landmanbester/hip-cargo.git?rev=fix-cab-yaml-emission" },
     { name = "jinja2", marker = "extra == 'web'", specifier = ">=3.1" },
     { name = "matplotlib", marker = "extra == 'full'", specifier = ">=3.6" },
+    { name = "msv4-utils", marker = "python_full_version >= '3.11' and extra == 'web'", specifier = ">=0.0.3" },
     { name = "numba", marker = "extra == 'full'", specifier = ">=0.57" },
     { name = "numpy", marker = "extra == 'full'", specifier = ">=1.23" },
     { name = "python-casacore", marker = "extra == 'full'", specifier = ">=3.5" },

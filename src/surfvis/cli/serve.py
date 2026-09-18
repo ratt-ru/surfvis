@@ -44,7 +44,9 @@ def serve(
     Browse surfchi2 output and plot baseline waterfalls on demand.
     """
     try:
+        import msv4_utils  # noqa: F401
         import uvicorn
+        import xarray_ms  # noqa: F401
 
         from surfvis.web.app import create_app
     except ImportError as exc:  # pragma: no cover - depends on install mode

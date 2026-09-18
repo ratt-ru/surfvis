@@ -97,10 +97,48 @@ def test_residual_is_plottable_but_flag_is_not(chi2_zarr):
     """RESIDUAL is non-standard, so xarray-ms surfaces it; FLAG is the overlay."""
     from surfvis.web import msdata
 
-    columns = msdata.available_columns(chi2_zarr["ms"]["path"], 0, 0)
+    columns = msdata.available_columns(chi2_zarr["ms"]["path"], 0, 0, 1)
     assert "RESIDUAL" in columns
     assert "VISIBILITY" in columns
     assert "FLAG" not in columns
+
+
+@needs_web
+def test_msv2_column_names_resolve_to_msv4(chi2_zarr):
+    """DATA is VISIBILITY and WEIGHT_SPECTRUM is WEIGHT in the MSv4 view."""
+    from surfvis.web import msdata
+
+    group = msdata.data_group(chi2_zarr["ms"]["path"])
+    assert group.correlated_data == "VISIBILITY"
+    assert group.weight == "WEIGHT"
+
+    assert group.resolve("DATA") == "VISIBILITY"
+    assert group.resolve("WEIGHT_SPECTRUM") == "WEIGHT"
+    assert group.resolve("FLAG") == "FLAG"
+    # Non-standard columns are not renamed by the MSv4 view.
+    assert group.resolve("RESIDUAL") == "RESIDUAL"
+
+
+@needs_web
+def test_data_column_is_plottable_by_its_msv2_name(chi2_zarr):
+    """Asking for DATA must work even though the variable is called VISIBILITY."""
+    from surfvis.web import msdata
+
+    names = chi2_zarr["ms"]["antenna_names"]
+    wf = msdata.waterfall(chi2_zarr["ms"]["path"], 0, 0, 1, names[0], names[1], 0, "DATA")
+    assert wf.column == "VISIBILITY"
+
+
+@needs_web
+def test_each_partition_is_one_scan(chi2_zarr):
+    """SCAN_NUMBER is in the partition schema, so a partition's time axis is the scan."""
+    from surfvis.web import msdata
+
+    names = chi2_zarr["ms"]["antenna_names"]
+    one = msdata.waterfall(chi2_zarr["ms"]["path"], 0, 0, 1, names[0], names[1], 0, "RESIDUAL")
+    two = msdata.waterfall(chi2_zarr["ms"]["path"], 0, 0, 2, names[0], names[1], 0, "RESIDUAL")
+    assert one.values.shape == two.values.shape == (12, 32)
+    assert not np.array_equal(one.values, two.values)
 
 
 @needs_web

@@ -61,19 +61,33 @@ Verified against 0.5.9 (see `tests/fixtures/ms.py`):
 
 - Variables come out as `(time, baseline_id, frequency, polarization)`, which
   *is* the waterfall shape. No row-to-grid pivot is needed, unlike dask-ms.
-- **`FIELD_ID` is not a partition column by default.** The default schema is
-  `OBSERVATION_ID/PROCESSOR_ID/DATA_DESC_ID/OBS_MODE_ID`, so `msdata._open`
-  passes `partition_schema=["DATA_DESC_ID", "FIELD_ID"]` explicitly to match how
-  surfchi2 groups.
-- **Scan is a coordinate, not a partition.** Select with a boolean index over
-  `scan_name`, whose values are *strings*.
-- `VISIBILITY` is hard-wired to the `DATA` column and cannot be repointed. But
-  columns that are *not* part of the MSv2 standard are surfaced automatically as
-  secondary variables — which is exactly why `RESIDUAL` is plottable. Standard
-  columns other than `DATA`/`WEIGHT_SPECTRUM` are dropped, except
-  `CORRECTED_DATA`, `MODEL_DATA`, `FLOAT_DATA` and `CORRECTED_WEIGHT_SPECTRUM`.
+- **The default partition schema is not what you want.** It is
+  `OBSERVATION_ID/PROCESSOR_ID/DATA_DESC_ID/OBS_MODE_ID` — no `FIELD_ID`, no
+  `SCAN_NUMBER`. `msdata.PARTITION_SCHEMA` is
+  `("FIELD_ID", "DATA_DESC_ID", "SCAN_NUMBER")`, matching `pfb-imaging`'s
+  default and surfchi2's `group_cols` exactly. One partition is then one
+  (field, spw, scan), so a partition's time axis *is* the scan and the chunk
+  can be addressed by integer ids via `partition_key` — no name lookup, no
+  boolean filtering over `scan_name`.
+- **Column names are MSv4, resolved via `data_groups`.** `DATA` is exposed as
+  `VISIBILITY` and `WEIGHT_SPECTRUM` as `WEIGHT`. Do not hardcode that: read
+  `node.ds.attrs["data_groups"][group]["correlated_data"]` / `["weight"]` /
+  `["flag"]`, as `pfb-imaging`'s `core/imager.py` does. `msdata.DataGroup`
+  wraps this and `DataGroup.resolve()` translates MSv2 names people type into
+  the MSv4 variable, so both spellings work in the UI.
+- **`data_groups` is attached by `open_datatree`, not `open_dataset`.** Hence
+  `msdata.data_group()` opens the tree once and caches it, while the per-chunk
+  reads use `open_dataset(partition_key=...)`.
+- Columns that are *not* part of the MSv2 standard are surfaced automatically as
+  secondary variables under their own names — which is exactly why `RESIDUAL` is
+  plottable. Standard columns other than `DATA`/`WEIGHT_SPECTRUM` are dropped,
+  except `CORRECTED_DATA`, `MODEL_DATA`, `FLOAT_DATA` and
+  `CORRECTED_WEIGHT_SPECTRUM`.
 - Baselines are addressed by antenna *name*, via the `baseline_antenna1_name` /
   `baseline_antenna2_name` coordinates, hence the names stored in the zarr.
+- **xarray-ms lays a regular (time, baseline) grid and fills gaps with NaN.**
+  Those slots hold no data, so `waterfall()` folds `~isfinite` into the flag
+  mask rather than letting them punch holes in the colour scale.
 
 ## Colour scaling
 

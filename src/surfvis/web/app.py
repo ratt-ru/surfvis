@@ -115,7 +115,7 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
                 "median": float(np.median(finite)) if finite.size else float("nan"),
                 "query": f"field={field}&spw={spw}&scan={scan}&t={t}&f={f}&c={c}",
                 "scales": render.SCALES,
-                "columns": _columns(ms_path, field, spw),
+                "columns": _columns(ms_path, field, spw, scan),
                 "default_column": chunk.rcol,
             },
         )
@@ -162,7 +162,7 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
                 "name1": names[p],
                 "name2": names[q],
                 "value": float(chunk.chi2_dof[p, q]),
-                "columns": _columns(ms_path, field, spw),
+                "columns": _columns(ms_path, field, spw, scan),
                 "column": column,
                 "quantity": quantity,
                 "quantities": msdata.QUANTITIES,
@@ -212,9 +212,9 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
     return app
 
 
-def _columns(ms: str, field: int, spw: int) -> list[str]:
+def _columns(ms: str, field: int, spw: int, scan: int) -> list[str]:
     """Plottable columns, or an empty list if the MS cannot be opened."""
     try:
-        return msdata.available_columns(ms, field, spw)
+        return msdata.available_columns(ms, field, spw, scan)
     except Exception:
         return []

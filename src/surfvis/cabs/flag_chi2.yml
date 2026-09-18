@@ -1,0 +1,83 @@
+cabs:
+  flag_chi2:
+    flavour: python
+    command: surfvis.core.flag_chi2.flag_chi2
+    name: flag_chi2
+    info:
+      Flag data with a per-visibility chi-squared above a threshold.
+    image: ghcr.io/ratt-ru/surfvis:latest
+    inputs:
+      ms:
+        info:
+          Measurement Set to flag.
+          The flag column is updated in place.
+        dtype: MS
+        required: true
+        policies:
+          positional: true
+        metadata:
+          rich_help_panel: Inputs
+        writable: true
+      rcol:
+        info:
+          Residual column.
+        default: RESIDUAL
+        metadata:
+          rich_help_panel: Inputs
+      wcol:
+        info:
+          Weight column.
+          The special value SIGMA_SPECTRUM can be passed to initialise the weights as 1/sigma**2.
+        default: WEIGHT_SPECTRUM
+        metadata:
+          rich_help_panel: Inputs
+      fcol:
+        info:
+          Flag column.
+          This is the column that gets updated.
+        default: FLAG
+        metadata:
+          rich_help_panel: Inputs
+      flag-above:
+        info:
+          Flag data with chi-squared above this value.
+        dtype: float
+        default: 3.0
+        metadata:
+          rich_help_panel: Inputs
+      nthreads:
+        info:
+          Number of dask threads to use.
+        dtype: int
+        default: 4
+        metadata:
+          rich_help_panel: Inputs
+      nrows:
+        info:
+          Number of rows in each chunk.
+        dtype: int
+        default: 250000
+        metadata:
+          rich_help_panel: Inputs
+      nfreqs:
+        info:
+          Number of frequencies in a chunk.
+        dtype: int
+        default: 512
+        metadata:
+          rich_help_panel: Inputs
+      use-corrs:
+        info:
+          Comma separated list of correlations to use.
+          Defaults to the diagonal correlations.
+        dtype: Optional[List[int]]
+        metadata:
+          rich_help_panel: Inputs
+      respect-ants:
+        info:
+          Comma separated list of antennas to respect.
+          Baselines to these antennas are left untouched.
+        dtype: Optional[List[int]]
+        metadata:
+          rich_help_panel: Inputs
+    outputs: {}

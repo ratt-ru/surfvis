@@ -1,0 +1,112 @@
+[project]
+name = "surfvis"
+version = "0.0.1"
+description = "Per-baseline time/frequency and chi-squared plots from Measurement Sets"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Ian Heywood", email = "ianh@astro.ox.ac.uk" }
+]
+maintainers = [
+    { name = "Landman Bester", email = "lbester@sarao.ac.za" }
+]
+keywords = ["radio-astronomy", "measurement-set", "stimela", "visibilities", "flagging"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "hip-cargo>=0.3.0",
+]
+
+# Lightweight install (default):  pip install surfvis
+#     Only pulls hip-cargo + typer. Suitable for cab consumers (e.g. stimela)
+#     and for running commands via container fallback. Generated CLI wrappers
+#     lazy-import core/, so when heavy deps are missing the wrapper drops into
+#     run_in_container() automatically.
+# Full install:                    pip install surfvis[full]
+#     Adds the heavy runtime deps that core/ implementations need to execute
+#     natively. Add new deps to the "full" extra below as you grow core/.
+[project.optional-dependencies]
+full = [
+    "astropy>=5.0",
+    "dask>=2023.1",
+    "dask-ms[xarray, zarr]>=0.2.20",
+    "matplotlib>=3.6",
+    "numba>=0.57",
+    "numpy>=1.23",
+    "python-casacore>=3.5",
+    "xarray>=2023.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/ratt-ru/surfvis"
+Repository = "https://github.com/ratt-ru/surfvis"
+"Bug Tracker" = "https://github.com/ratt-ru/surfvis/issues"
+
+[project.scripts]
+"surfvis" = "surfvis.cli:app"
+
+[build-system]
+# NOTE: This uv_build constraint is intentionally aligned with hip-cargo's own pyproject.toml.
+# If you bump uv_build in hip-cargo, update this template constraint to match.
+requires = ["uv_build>=0.8.3,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+# ruff 0.16+ formats Python code blocks embedded in Markdown. CLAUDE.md and
+# README snippets are illustrative fragments (e.g. aligned comments) that ruff
+# would rewrite, so keep the formatter to real Python files only.
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = []
+
+# The numba kernels keep the upper-case names used in the maths they implement
+# (R/W/F for residual/weight/flag, Ip/Iq/Ipq for the antenna index masks).
+[tool.ruff.lint.per-file-ignores]
+"src/surfvis/utils/chisq.py" = ["N806"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Tests that take more time to run",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.9.0",
+    "tbump>=6.11.0",
+    "pre-commit>=4.0.0",
+]
+test = [
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+]

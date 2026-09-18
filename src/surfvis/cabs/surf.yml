@@ -1,0 +1,100 @@
+cabs:
+  surf:
+    flavour: python
+    command: surfvis.core.surf.surf
+    name: surf
+    info:
+      Create per-baseline time/frequency plots from a Measurement Set.
+    image: ghcr.io/ratt-ru/surfvis:latest
+    inputs:
+      ms:
+        info:
+          Measurement Set to plot.
+        dtype: MS
+        required: true
+        policies:
+          positional: true
+        metadata:
+          rich_help_panel: Inputs
+      datacolumn:
+        info:
+          Measurement Set column to plot.
+        default: DATA
+        metadata:
+          rich_help_panel: Inputs
+      field:
+        info:
+          Field ID to plot.
+        dtype: int
+        default: 0
+        metadata:
+          rich_help_panel: Inputs
+      spw:
+        info:
+          Comma separated list of SPWs to plot.
+          Defaults to all of them.
+        dtype: Optional[List[int]]
+        metadata:
+          rich_help_panel: Inputs
+      plot:
+        info:
+          Quantity to plot.
+        choices:
+        - amp
+        - phase
+        - real
+        - imag
+        default: amp
+        metadata:
+          rich_help_panel: Inputs
+      i:
+        info:
+          Index of antenna 1.
+          Plot only this antenna.
+          Defaults to all of them.
+        dtype: Optional[int]
+        metadata:
+          rich_help_panel: Inputs
+      j:
+        info:
+          Index of antenna 2.
+          Use together with i to plot a single baseline.
+        dtype: Optional[int]
+        metadata:
+          rich_help_panel: Inputs
+      noflags:
+        info:
+          Disable flagged data overlay.
+        dtype: bool
+        default: false
+        metadata:
+          rich_help_panel: Inputs
+      doacorr:
+        info:
+          Plot auto-correlations.
+        dtype: bool
+        default: false
+        metadata:
+          rich_help_panel: Inputs
+      scale:
+        info:
+          Scale the image peak to this multiple of the per-corr min/max.
+          The default scales the image max to 5 sigma.
+          Ignored for phase plots.
+        dtype: Optional[float]
+        metadata:
+          rich_help_panel: Inputs
+      cmap:
+        info:
+          Matplotlib colour map to use.
+        default: jet
+        metadata:
+          rich_help_panel: Inputs
+    outputs:
+      opdir:
+        dtype: Directory
+        info:
+          Output folder to store plots.
+          Defaults to <ms>_<datacolumn>__plots.
+        metadata:
+          rich_help_panel: Outputs

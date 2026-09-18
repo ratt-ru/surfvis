@@ -1,39 +1,117 @@
-name: surfvis Workflow
+name: CI
 
-on: [pull_request]
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
 
 jobs:
-  test:
+  quality:
+    name: Code Quality
     runs-on: ubuntu-latest
+    env:
+      SKIP_CHECKS: 'false'
+    steps:
+      - name: Check for skip checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          MSG=$(gh api repos/${{ github.repository }}/commits/$COMMIT_SHA --jq '.commit.message')
+          if echo "$MSG" | grep -qF '[skip checks]'; then
+            echo "SKIP_CHECKS=true" >> "$GITHUB_ENV"
+            echo "Skipping checks because [skip checks] was found in the commit message."
+          fi
+
+      - name: Check out code
+        if: env.SKIP_CHECKS != 'true'
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        if: env.SKIP_CHECKS != 'true'
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+
+      - name: Set up uv
+        if: env.SKIP_CHECKS != 'true'
+        uses: astral-sh/setup-uv@v7
+
+      - name: Cache uv dependencies
+        if: env.SKIP_CHECKS != 'true'
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      - name: Install dependencies
+        if: env.SKIP_CHECKS != 'true'
+        run: uv sync --group dev
+
+      - name: Check code formatting
+        if: env.SKIP_CHECKS != 'true'
+        run: uv run ruff format --check .
+
+      - name: Lint code
+        if: env.SKIP_CHECKS != 'true'
+        run: uv run ruff check .
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    env:
+      SKIP_CHECKS: 'false'
+      # Without this, uv obeys .python-version (3.11) and the matrix is cosmetic.
+      UV_PYTHON: ${{ matrix.python-version }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
+      - name: Check for skip checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          MSG=$(gh api repos/${{ github.repository }}/commits/$COMMIT_SHA --jq '.commit.message')
+          if echo "$MSG" | grep -qF '[skip checks]'; then
+            echo "SKIP_CHECKS=true" >> "$GITHUB_ENV"
+            echo "Skipping checks because [skip checks] was found in the commit message."
+          fi
+
+      - name: Check out code
+        if: env.SKIP_CHECKS != 'true'
+        uses: actions/checkout@v7
+
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        if: env.SKIP_CHECKS != 'true'
+        uses: actions/setup-python@v7
         with:
-          python-version: ${{ matrix.python-version}}
+          python-version: ${{ matrix.python-version }}
 
-      - name: Checkout source
-        uses: actions/checkout@v3
+      - name: Set up uv
+        if: env.SKIP_CHECKS != 'true'
+        uses: astral-sh/setup-uv@v7
+
+      - name: Cache uv dependencies
+        if: env.SKIP_CHECKS != 'true'
+        uses: actions/cache@v6
         with:
-          fetch-depth: 1
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-py${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-py${{ matrix.python-version }}-
+            ${{ runner.os }}-uv-
 
-      - name: Upgrade pip and setuptools
-        run: python -m pip install -U pip setuptools
-
-      - name: Install surfvis
-        run: python -m pip install .[testing]
+      - name: Install dependencies
+        if: env.SKIP_CHECKS != 'true'
+        run: uv sync --group test
 
       - name: Run tests
-        run: py.test -s -vvv tests/
-
-  deploy:
-    needs: [test]
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Deploy Step
-        run: >
-          echo "Deploying PyPI"
+        if: env.SKIP_CHECKS != 'true'
+        run: uv run pytest -v

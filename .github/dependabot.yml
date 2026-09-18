@@ -1,0 +1,63 @@
+version: 2
+
+# Policy: upgrade Python packages only when it is actually necessary.
+#
+# `open-pull-requests-limit: 0` disables *version* updates for an ecosystem.
+# Security updates are unaffected by it — they come from the repository's
+# "Dependabot security updates" setting and fire when an advisory is published,
+# so they ignore both the limit and the `schedule`. The net effect is silence
+# until something we depend on is found vulnerable.
+#
+# Do NOT express this with `allow: dependency-type: "direct"` instead: `allow`
+# filters security updates too, and transitive packages are exactly where most
+# real advisories land. The limit is the clean lever.
+#
+# A `groups` entry only applies to version updates unless it says otherwise
+# (`applies-to` defaults to `version-updates`). The `*-security` groups batch
+# advisories so a multi-advisory week arrives as a single PR.
+updates:
+  # Python dependencies (uv ecosystem keeps uv.lock in sync, unlike pip)
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly" # unused while the limit is 0; kept for when it isn't
+      day: "monday"
+      time: "09:00"
+    # 0 = no routine version-update PRs. Security advisories still come through.
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+    groups:
+      python-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      # Retained so that raising the limit restores grouped version updates
+      python-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      python-major:
+        applies-to: version-updates
+        update-types: ["major"]
+
+  # GitHub Actions. Kept on (monthly) version updates rather than a limit of 0:
+  # actions rarely carry advisories, so 0 would freeze them permanently, and
+  # GitHub retires action major versions on its own schedule — a stale pin
+  # eventually breaks CI with no warning PR.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 1
+    commit-message:
+      prefix: "ci"
+    groups:
+      github-actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "*"

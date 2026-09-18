@@ -3,12 +3,12 @@ type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
 timestamp: 2026-09-18
-last_verified_commit: 91fd17f
+last_verified_commit: b327ec0
 ---
 
 # Wiki changelog
 
-## 2026-09-19 — review pass after hip-cargo #112/#113
+## 2026-09-19 — review pass after hip-cargo #112/#113 (verified at `b327ec0`)
 
 - **Revised** `cli-contract.md`: the typer dialect is closed and enforced at
   parse time upstream, and writing the cab is the recommended direction —

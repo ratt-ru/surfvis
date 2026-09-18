@@ -4,7 +4,7 @@ title: Chi-squared pipeline
 description: How chi2 and flag-chi2 chunk a Measurement Set, what the numba kernels compute, how results are reduced, and where images land.
 tags: [chi2, flagging, dask, numba, daskms]
 timestamp: 2026-09-18
-last_verified_commit: 91fd17f
+last_verified_commit: b327ec0
 ---
 
 # Chi-squared pipeline
@@ -50,6 +50,11 @@ Output layout, rooted at `--imagesout` (default `$CWD/chi2`):
 
 The `--nthreads` value does double duty: it sizes the process pool *and* the
 dask `ThreadPool` set via `dask.config`.
+
+**That pool must use a spawn context.** The `ThreadPool` above is already
+running by the time the executor is built, and forking a process with live
+threads deadlocks the children — the parent waits in `as_completed` forever,
+printing nothing. See [web-app.md](web-app.md) §The fork deadlock.
 
 ## `flag-chi2` — flagging in place
 

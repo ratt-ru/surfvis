@@ -105,7 +105,11 @@ class Chunk:
 
 @lru_cache(maxsize=32)
 def _open_group(path: str, field: int, spw: int, scan: int) -> xr.Dataset:
-    return xr.open_zarr(path, group=f"field{field}/spw{spw}/scan{scan}")
+    # chunks=None reads eagerly into numpy. Without it xarray returns
+    # dask-backed arrays, which would make dask a hard requirement of the web
+    # extra for no benefit -- a single chunk's matrix is a few hundred KB and
+    # every consumer here calls .values immediately.
+    return xr.open_zarr(path, group=f"field{field}/spw{spw}/scan{scan}", chunks=None)
 
 
 def _discover_scans(path: Path) -> list[tuple[int, int, int]]:

@@ -126,4 +126,6 @@ dev = [
 test = [
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
+    # starlette's TestClient needs this; only used by tests/test_web.py
+    "httpx2>=0.28; python_version >= '3.11'",
 ]

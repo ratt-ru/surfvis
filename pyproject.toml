@@ -25,7 +25,11 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "hip-cargo>=0.3.0",
+    # TEMPORARY: pinned to the branch carrying the cab-YAML emission fixes
+    # (landmanbester/hip-cargo#111, issues #109 and #110). Revert to a released
+    # "hip-cargo>=<version>" before publishing — PyPI rejects direct URL
+    # dependencies, so publish.yml cannot ship a release while this pin stands.
+    "hip-cargo @ git+https://github.com/landmanbester/hip-cargo.git@fix-cab-yaml-emission",
 ]
 
 # Lightweight install (default):  pip install surfvis

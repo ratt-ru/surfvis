@@ -49,16 +49,14 @@ cabs:
           rich_help_panel: Inputs
       i:
         info:
-          Index of antenna 1.
-          Plot only this antenna.
-          Defaults to all of them.
+          'Antenna 1: plot only this antenna.
+          Defaults to all of them.'
         dtype: Optional[int]
         metadata:
           rich_help_panel: Inputs
       j:
         info:
-          Index of antenna 2.
-          Use together with i to plot a single baseline.
+          'Antenna 2: use with i to plot a single baseline.'
         dtype: Optional[int]
         metadata:
           rich_help_panel: Inputs

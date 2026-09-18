@@ -67,14 +67,14 @@ def surf(
     i: Annotated[
         int | None,
         typer.Option(
-            help="Index of antenna 1. Plot only this antenna. Defaults to all of them.",
+            help="Antenna 1: plot only this antenna. Defaults to all of them.",
             rich_help_panel="Inputs",
         ),
     ] = None,
     j: Annotated[
         int | None,
         typer.Option(
-            help="Index of antenna 2. Use together with i to plot a single baseline.",
+            help="Antenna 2: use with i to plot a single baseline.",
             rich_help_panel="Inputs",
         ),
     ] = None,

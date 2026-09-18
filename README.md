@@ -45,6 +45,7 @@ surfvis --help
 | `surfvis surf` | One time/frequency PNG per baseline. |
 | `surfvis chi2` | Per-(time, freq, corr) chi-squared images plus a per-scan combination. |
 | `surfvis flag-chi2` | Flag visibilities whose chi-squared exceeds a threshold. Modifies the MS in place. |
+| `surfvis serve` | Browse chi-squared output in a browser and plot baseline waterfalls on demand. |
 
 ### Examples
 
@@ -68,6 +69,41 @@ surfvis flag-chi2 --ms /data/my.ms --flag-above 5 --respect-ants 0,1
 
 Comma-separated list options (`--spw`, `--use-corrs`, `--respect-ants`) take a
 single argument with no spaces: `--use-corrs 0,3`.
+
+## Browsing chi-squared interactively
+
+`surfvis chi2 --dataout` writes the chi-squared numbers, not just the PNGs, and
+`surfvis serve` turns them into a browsable page: an antenna-by-antenna grid per
+chunk, with the histogram over all antenna pairs beside it, and a click on any
+cell plotting that baseline's waterfall straight from the Measurement Set.
+
+```bash
+pip install 'surfvis[full,web]'
+
+surfvis chi2 --ms /data/my.ms --dataout /data/chi2.zarr --imagesout /data/chi2
+surfvis serve --data /data/chi2.zarr          # http://127.0.0.1:8000
+```
+
+Or with no local dependencies at all:
+
+```bash
+docker run --rm -p 8000:8000 -v /data:/data ghcr.io/ratt-ru/surfvis \
+    surfvis serve --data /data/chi2.zarr --host 0.0.0.0 --port 8000
+```
+
+The MS path is recorded in the dataset, so `--ms` is only needed if it has
+moved. The colour scale defaults to **log**: chi-squared per degree of freedom
+routinely spans orders of magnitude, and a linear scale renders everything but
+the single worst cell black. `robust` (2nd-98th percentile) and `full` are one
+click away.
+
+Waterfalls cover the whole scan by channel, for the clicked baseline, with the
+chunk you clicked outlined in green and flagged data greyed out. Any column with
+a `(time, baseline, frequency, polarization)` shape can be plotted, including
+non-standard ones like `RESIDUAL` -- which is the point, since that is what the
+chi-squared was computed from.
+
+This is a GUI, so it is deliberately **not** a Stimela cab and never will be.
 
 > **Coming from the old scripts?** `surfvis`, `surfchi2` and `flagchi2` were
 > three separate `optparse` executables. See

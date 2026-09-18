@@ -11,6 +11,7 @@ commands, one Typer app:
 | `surfvis surf` | `core/surf.py` | One time/frequency PNG per baseline. |
 | `surfvis chi2` | `core/chi2.py` | Per-(time, freq, corr) chi-squared images plus a per-scan combination. |
 | `surfvis flag-chi2` | `core/flag_chi2.py` | Flag visibilities whose chi-squared exceeds a threshold, in place. |
+| `surfvis serve` | `web/` | FastAPI + htmx browser over `chi2 --dataout`. Not a cab, deliberately. |
 
 `onboard` is the scaffolding command that prints the remaining CI/CD setup
 steps. Delete it once GitHub is fully configured.

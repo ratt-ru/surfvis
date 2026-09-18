@@ -45,8 +45,8 @@ Output layout, rooted at `--imagesout` (default `$CWD/chi2`):
 ```
 
 `--imagesout` and `--dataout` are both **deleted and recreated** on every run.
-`--dataout` is currently vestigial: the directory is removed but nothing is
-written to it — the zarr output it was named for was never implemented.
+`--dataout` now writes the zarr its name always implied — see
+[web-app.md](web-app.md) for the layout. It is what `surfvis serve` reads.
 
 The `--nthreads` value does double duty: it sizes the process pool *and* the
 dask `ThreadPool` set via `dask.config`.

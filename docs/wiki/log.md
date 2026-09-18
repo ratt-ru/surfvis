@@ -8,6 +8,14 @@ last_verified_commit: 91fd17f
 
 # Wiki changelog
 
+## 2026-09-18 — chi-squared browser
+
+- **Added** `web-app.md` for `surfvis serve`: the zarr contract written by
+  `chi2 --dataout`, the xarray-ms behaviour it relies on (partition schema,
+  scan-as-coordinate, secondary columns), why the colour scale is log, and the
+  spawn-vs-fork deadlock in `core/chi2.py`.
+- **Updated** `chi2-pipeline.md`: `--dataout` is no longer vestigial.
+
 ## 2026-09-18 — wiki created alongside the hip-cargo conversion
 
 Initial bundle, written while converting surfvis from three `optparse` console

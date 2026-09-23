@@ -4,7 +4,7 @@ title: Migration from the optparse entry points
 description: Option-by-option mapping from the pre-hip-cargo surfvis/surfchi2/flagchi2 scripts to the single surfvis Typer app.
 tags: [migration, cli, breaking-changes]
 timestamp: 2026-09-18
-last_verified_commit: c3bd176
+last_verified_commit: de24898
 ---
 
 # Migration from the optparse entry points

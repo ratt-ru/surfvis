@@ -4,7 +4,7 @@ title: CLI, cab and core contract
 description: How src/surfvis/cli, src/surfvis/cabs and src/surfvis/core stay in agreement, and the hip-cargo quirks this repo routes around.
 tags: [cli, cabs, typer, stimela, round-trip]
 timestamp: 2026-09-18
-last_verified_commit: c3bd176
+last_verified_commit: de24898
 ---
 
 # CLI, cab and core contract

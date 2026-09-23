@@ -51,6 +51,15 @@ written to it — the zarr output it was named for was never implemented.
 The `--nthreads` value does double duty: it sizes the process pool *and* the
 dask `ThreadPool` set via `dask.config`.
 
+## The fork deadlock
+
+That pool is built with an explicit **spawn** context, and must be. The dask
+`ThreadPool` above is already running by the time the executor is created, and
+forking a process with live threads deadlocks the children: the parent waits in
+`as_completed` forever, printing nothing at all. The failure is load-dependent —
+it turns on whether a thread happened to hold a lock at fork time — so it
+presents as an intermittent hang rather than a reliable one.
+
 ## `flag-chi2` — flagging in place
 
 Simpler: one pass over the MS chunked by `--nrows` rows and `--nfreqs`

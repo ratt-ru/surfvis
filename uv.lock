@@ -794,21 +794,20 @@ wheels = [
 
 [[package]]
 name = "hip-cargo"
-version = "0.3.0"
+version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fsspec" },
     { name = "libcst" },
     { name = "pyyaml" },
     { name = "ruff" },
-    { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "typer" },
     { name = "typing-extensions" },
     { name = "universal-pathlib" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/46/22/dab3c8dfa5cc3f8e8145d658433e1d0b4ef126b18e8d8276d8448b491aaf/hip_cargo-0.3.0.tar.gz", hash = "sha256:1fbfc848c1a38dcd584d5cf91652e45d1c95f866ec4b10c79b21f186cdd2dfc1", size = 124229, upload-time = "2026-07-24T21:53:26.017Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2b/60/40340800369673b76d135b5f991ee3c23bb38ac05a0e5c8ca580feb5cf38/hip_cargo-0.4.0.tar.gz", hash = "sha256:a4cb2ad39ac2eaec064885344bd91f3c1e02a278d007984dfc8593756055696d", size = 92979, upload-time = "2026-09-23T14:57:23.233Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f4/cb/808927ce51fe94d0661f2128162bfe7ae371a9d07eb4be2f1f21431d69a1/hip_cargo-0.3.0-py3-none-any.whl", hash = "sha256:f9601675ec78f4e3a4a2ff79e69ad4a863437d4eb39feb36825eae50706fcd3b", size = 145807, upload-time = "2026-07-24T21:53:24.492Z" },
+    { url = "https://files.pythonhosted.org/packages/05/67/529d7a58c8bb624f1567bb27f9b9f66c878634b641f254b52bd9c0144c02/hip_cargo-0.4.0-py3-none-any.whl", hash = "sha256:cdb5756485ec31acbe76e4f5998b881a52886a91fd11733c54a1189499a8bdb5", size = 105858, upload-time = "2026-09-23T14:57:21.821Z" },
 ]
 
 [[package]]
@@ -825,7 +824,7 @@ name = "importlib-metadata"
 version = "9.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "zipp", marker = "python_full_version < '3.13'" },
+    { name = "zipp", marker = "python_full_version < '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/6f/7e/1e7e8dc30634b93ebb3d58a3dea569ad146e656218d3960ab04f62047b29/importlib_metadata-9.0.1.tar.gz", hash = "sha256:ab830580bc0ef3db61ce8fae716389e5462b67e033018bab6d8f80ef17172f99", size = 59124, upload-time = "2026-08-28T15:30:34.646Z" }
 wheels = [
@@ -2257,7 +2256,7 @@ requires-dist = [
     { name = "astropy", marker = "extra == 'full'", specifier = ">=5.0" },
     { name = "dask", marker = "extra == 'full'", specifier = ">=2023.1" },
     { name = "dask-ms", extras = ["xarray", "zarr"], marker = "extra == 'full'", specifier = ">=0.2.20" },
-    { name = "hip-cargo", specifier = ">=0.3.0" },
+    { name = "hip-cargo", specifier = ">=0.4.0" },
     { name = "matplotlib", marker = "extra == 'full'", specifier = ">=3.6" },
     { name = "numba", marker = "extra == 'full'", specifier = ">=0.57" },
     { name = "numpy", marker = "extra == 'full'", specifier = ">=1.23" },

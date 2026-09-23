@@ -25,7 +25,9 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "hip-cargo>=0.3.0",
+    # 0.4.0 carries the cab-emission fixes (#109, #110) and the dialect
+    # rejections (#112, #113) these CLI modules were written against.
+    "hip-cargo>=0.4.0",
 ]
 
 # Lightweight install (default):  pip install surfvis

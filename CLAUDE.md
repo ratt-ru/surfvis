@@ -13,11 +13,7 @@ app, several commands:
 | `surfvis surf` | `core/surf.py` | One time/frequency PNG per baseline. |
 | `surfvis chi2` | `core/chi2.py` | Per-(time, freq, corr) chi-squared images, a per-scan combination, and the zarr the browser reads. |
 | `surfvis flag-chi2` | `core/flag_chi2.py` | Flag visibilities whose chi-squared exceeds a threshold, in place. |
-<<<<<<< HEAD
-=======
 | `surfvis serve` | `web/` | FastAPI + htmx browser over `chi2 --dataout`. Not a cab, deliberately. |
-| `surfvis onboard` | `core/onboard.py` | Prints remaining CI/CD setup steps. Delete once GitHub is configured. |
->>>>>>> 0070303 (feat(web): add surfvis serve, a chi-squared browser)
 
 This is a [hip-cargo](https://github.com/landmanbester/hip-cargo) package: CLI
 commands are decorated so Stimela cab definitions are generated from the CLI
@@ -37,19 +33,13 @@ uv run pytest tests/test_roundtrip.py::test_roundtrip_chi2 -v   # one test
 uv run hip-cargo generate-cabs --module 'src/surfvis/cli/*.py' --output-dir src/surfvis/cabs
 ```
 
-<<<<<<< HEAD
-The heavy stack (python-casacore, dask-ms, numba) is **not** in the dev
+The heavy stack (python-casacore, dask-ms, numba, xarray-ms) is **not** in the dev
 environment, so anything touching a Measurement Set skips locally. That is only
 true of a clean venv — the extras drift in easily, and then the MS tests start
 running locally and the suite stops resembling CI. `uv sync --group dev --group
 test --exact` prunes it back.
 
 Run the MS tests in the container:
-=======
-The heavy stack (python-casacore, dask-ms, numba, xarray-ms) is **not** in the
-dev environment, so anything touching a Measurement Set skips locally. Run
-those in the container:
->>>>>>> 0070303 (feat(web): add surfvis serve, a chi-squared browser)
 
 ```bash
 docker build -t surfvis:local .
@@ -59,11 +49,7 @@ docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/src -w /src \
    PYTHONPATH=/tmp/t:/src/src:/src /tmp/t/bin/pytest tests/ -q -W ignore"
 ```
 
-<<<<<<< HEAD
-That is the only way to run the full suite (14 tests). **CI does not run them** —
-=======
-That is the only way to run the full suite (30 tests). **CI does not run them** —
->>>>>>> 0070303 (feat(web): add surfvis serve, a chi-squared browser)
+That is the only way to run the full suite (29 tests). **CI does not run them** —
 `.github/workflows/ci.yml` installs the lightweight package only, deliberately,
 since python-casacore and numba make CI slow and brittle. Verify locally.
 
@@ -171,18 +157,12 @@ the MSv4 view unless `FEED` (validated against ANTENNA1/2), `STATE`, and the
 batch task. `generate-cabs` skips undecorated functions, which is what keeps
 `serve.yml` from existing.
 
-<<<<<<< HEAD
-**A green test run proves less than it looks.** The heavy module skips at
-*import*, so pytest reports one skip for the whole file: a lightweight run says
-"9 passed, 1 skipped" while 5 tests did not run.
-=======
 **The `[web]` extra needs Python 3.11+** (xarray-ms). The batch commands still
 support 3.10, hence the environment marker in `pyproject.toml`.
 
 **A green test run proves less than it looks.** The heavy modules skip at
 *import*, so pytest reports one skip per module: a lightweight run says
-"10 passed, 2 skipped" while 17 tests did not run.
->>>>>>> 0070303 (feat(web): add surfvis serve, a chi-squared browser)
+"9 passed, 2 skipped" while 17 tests did not run.
 `tests/test_suite_integrity.py` pins the per-module test counts statically so a
 deletion fails loudly; update those counts deliberately when adding or removing
 a test.
@@ -197,7 +177,8 @@ regenerating with it.
 
 The project is **moving away from Dask and distributed**. `core/chi2.py` and
 `core/flag_chi2.py` still use dask-ms + dask arrays; the web layer already does
-not. Before writing new parallel or kernel code, consult `rarg-ray-patterns` (Ray actor autoscaling,
+not. Before writing new parallel
+or kernel code, consult `rarg-ray-patterns` (Ray actor autoscaling,
 `wrap_future` bridging `ObjectRef` to asyncio) and `rarg-numba-patterns` (atomic
 spinlocks, typed pointer intrinsics). The spawn workaround above is a band-aid
 over the fork+threads architecture that this migration removes: numba atomics

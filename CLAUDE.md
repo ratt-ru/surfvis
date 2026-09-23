@@ -11,8 +11,13 @@ app, several commands:
 |---|---|---|
 | `surfvis summary` | `core/summary.py` | Print the FIELD / SPECTRAL_WINDOW / ANTENNA tables. |
 | `surfvis surf` | `core/surf.py` | One time/frequency PNG per baseline. |
-| `surfvis chi2` | `core/chi2.py` | Per-(time, freq, corr) chi-squared images plus a per-scan combination. |
+| `surfvis chi2` | `core/chi2.py` | Per-(time, freq, corr) chi-squared images, a per-scan combination, and the zarr the browser reads. |
 | `surfvis flag-chi2` | `core/flag_chi2.py` | Flag visibilities whose chi-squared exceeds a threshold, in place. |
+<<<<<<< HEAD
+=======
+| `surfvis serve` | `web/` | FastAPI + htmx browser over `chi2 --dataout`. Not a cab, deliberately. |
+| `surfvis onboard` | `core/onboard.py` | Prints remaining CI/CD setup steps. Delete once GitHub is configured. |
+>>>>>>> 0070303 (feat(web): add surfvis serve, a chi-squared browser)
 
 This is a [hip-cargo](https://github.com/landmanbester/hip-cargo) package: CLI
 commands are decorated so Stimela cab definitions are generated from the CLI
@@ -32,6 +37,7 @@ uv run pytest tests/test_roundtrip.py::test_roundtrip_chi2 -v   # one test
 uv run hip-cargo generate-cabs --module 'src/surfvis/cli/*.py' --output-dir src/surfvis/cabs
 ```
 
+<<<<<<< HEAD
 The heavy stack (python-casacore, dask-ms, numba) is **not** in the dev
 environment, so anything touching a Measurement Set skips locally. That is only
 true of a clean venv — the extras drift in easily, and then the MS tests start
@@ -39,16 +45,25 @@ running locally and the suite stops resembling CI. `uv sync --group dev --group
 test --exact` prunes it back.
 
 Run the MS tests in the container:
+=======
+The heavy stack (python-casacore, dask-ms, numba, xarray-ms) is **not** in the
+dev environment, so anything touching a Measurement Set skips locally. Run
+those in the container:
+>>>>>>> 0070303 (feat(web): add surfvis serve, a chi-squared browser)
 
 ```bash
 docker build -t surfvis:local .
 docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/src -w /src \
   surfvis:local bash -c \
-  "pip install --quiet --target /tmp/t pytest; \
+  "pip install --quiet --target /tmp/t pytest httpx2; \
    PYTHONPATH=/tmp/t:/src/src:/src /tmp/t/bin/pytest tests/ -q -W ignore"
 ```
 
+<<<<<<< HEAD
 That is the only way to run the full suite (14 tests). **CI does not run them** —
+=======
+That is the only way to run the full suite (30 tests). **CI does not run them** —
+>>>>>>> 0070303 (feat(web): add surfvis serve, a chi-squared browser)
 `.github/workflows/ci.yml` installs the lightweight package only, deliberately,
 since python-casacore and numba make CI slow and brittle. Verify locally.
 
@@ -68,9 +83,16 @@ Three layers, and the boundary between them is load-bearing:
 - **`cabs/`** is generated. Never edit by hand.
 - **`utils/`** is heavy too (`chisq.py` numba kernels, `plotting.py` matplotlib)
   and is imported only from `core/`.
+- **`web/`** is the browser: `store.py` (zarr), `msdata.py` (MS via xarray-ms),
+  `render.py` (colours + PNGs), `app.py` (FastAPI). Dask-free.
 
 `pip install surfvis` gets the CLI and cabs only; `[full]` adds the science
-stack. The Dockerfile installs `[full]`.
+stack, `[web]` the browser. The Dockerfile installs `[full,web]`.
+
+Data flow for the browser: `chi2 --dataout` writes χ² and counts per
+`(time bin, freq bin, corr, antenna, antenna)`, one zarr group per
+`(field, spw, scan)`. `serve` reads that for the heatmap and only opens the MS
+when a waterfall is requested.
 
 ## Sharp edges
 
@@ -119,17 +141,48 @@ with live threads deadlocks the children — the parent hangs in `as_completed`
 forever, with no output. The failure is load-dependent, so it presents as an
 intermittent hang.
 
+**MSv4 renames columns; resolve, do not hardcode.** `DATA` is exposed as
+`VISIBILITY`, `WEIGHT_SPECTRUM` as `WEIGHT`. Read them from
+`attrs["data_groups"][group]`, as `pfb-imaging`'s `core/imager.py` does.
+`data_groups` is attached by `open_datatree`, **not** `open_dataset`. Columns
+outside the MSv2 standard (`RESIDUAL`) are not renamed.
+
+**xarray-ms's default partition schema is wrong for us.** It omits `FIELD_ID`
+and `SCAN_NUMBER`. Use `("FIELD_ID", "DATA_DESC_ID", "SCAN_NUMBER")` — it
+matches both pfb-imaging and surfchi2's grouping, so one partition is one
+(field, spw, scan). xarray-ms also fills gaps in its regular (time, baseline)
+grid with NaN; treat those as flagged.
+
+**`corr` in the zarr is a resolved polarization index**, not an offset into
+`--use-corrs`. The default `[0, -1]` is stored as `[0, 3]`. Get this wrong and
+every waterfall shows the wrong polarization.
+
+**Colour scales default to log.** χ²/dof spans orders of magnitude; on a linear
+scale one bad baseline renders every other cell black. The histogram bins follow
+the same scale for the same reason.
+
+**A synthetic MS needs more than the main table.** xarray-ms refuses to build
+the MSv4 view unless `FEED` (validated against ANTENNA1/2), `STATE`, and the
+`FIELD` direction columns are populated. `tests/fixtures/ms.py` does this.
+
 **`--dataout` and `--imagesout` are deleted and recreated** on every `chi2` run.
-`--dataout` is currently vestigial: the directory is removed and nothing is
-written to it. Implementing it is the subject of the `serve-ui` branch.
 
-**The fixture MS populates more subtables than casacore needs.** `FEED`, `STATE`
-and the `FIELD` direction columns are there because an MSv4 reader refuses to
-build its view without them. Keep them when editing the fixture.
+**`serve` carries no `@stimela_cab`** and must not. A long-running GUI is not a
+batch task. `generate-cabs` skips undecorated functions, which is what keeps
+`serve.yml` from existing.
 
+<<<<<<< HEAD
 **A green test run proves less than it looks.** The heavy module skips at
 *import*, so pytest reports one skip for the whole file: a lightweight run says
 "9 passed, 1 skipped" while 5 tests did not run.
+=======
+**The `[web]` extra needs Python 3.11+** (xarray-ms). The batch commands still
+support 3.10, hence the environment marker in `pyproject.toml`.
+
+**A green test run proves less than it looks.** The heavy modules skip at
+*import*, so pytest reports one skip per module: a lightweight run says
+"10 passed, 2 skipped" while 17 tests did not run.
+>>>>>>> 0070303 (feat(web): add surfvis serve, a chi-squared browser)
 `tests/test_suite_integrity.py` pins the per-module test counts statically so a
 deletion fails loudly; update those counts deliberately when adding or removing
 a test.
@@ -143,8 +196,8 @@ regenerating with it.
 ## Direction of travel
 
 The project is **moving away from Dask and distributed**. `core/chi2.py` and
-`core/flag_chi2.py` still use dask-ms + dask arrays. Before writing new parallel
-or kernel code, consult `rarg-ray-patterns` (Ray actor autoscaling,
+`core/flag_chi2.py` still use dask-ms + dask arrays; the web layer already does
+not. Before writing new parallel or kernel code, consult `rarg-ray-patterns` (Ray actor autoscaling,
 `wrap_future` bridging `ObjectRef` to asyncio) and `rarg-numba-patterns` (atomic
 spinlocks, typed pointer intrinsics). The spawn workaround above is a band-aid
 over the fork+threads architecture that this migration removes: numba atomics

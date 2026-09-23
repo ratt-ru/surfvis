@@ -4,7 +4,11 @@ title: Chi-squared pipeline
 description: How chi2 and flag-chi2 chunk a Measurement Set, what the numba kernels compute, how results are reduced, and where images land.
 tags: [chi2, flagging, dask, numba, daskms]
 timestamp: 2026-09-18
+<<<<<<< HEAD
 last_verified_commit: de24898
+=======
+last_verified_commit: b327ec0
+>>>>>>> 0070303 (feat(web): add surfvis serve, a chi-squared browser)
 ---
 
 # Chi-squared pipeline
@@ -45,20 +49,16 @@ Output layout, rooted at `--imagesout` (default `$CWD/chi2`):
 ```
 
 `--imagesout` and `--dataout` are both **deleted and recreated** on every run.
-`--dataout` is currently vestigial: the directory is removed but nothing is
-written to it — the zarr output it was named for was never implemented.
+`--dataout` now writes the zarr its name always implied — see
+[web-app.md](web-app.md) for the layout. It is what `surfvis serve` reads.
 
 The `--nthreads` value does double duty: it sizes the process pool *and* the
 dask `ThreadPool` set via `dask.config`.
 
-## The fork deadlock
-
-That pool is built with an explicit **spawn** context, and must be. The dask
-`ThreadPool` above is already running by the time the executor is created, and
-forking a process with live threads deadlocks the children: the parent waits in
-`as_completed` forever, printing nothing at all. The failure is load-dependent —
-it turns on whether a thread happened to hold a lock at fork time — so it
-presents as an intermittent hang rather than a reliable one.
+**That pool must use a spawn context.** The `ThreadPool` above is already
+running by the time the executor is built, and forking a process with live
+threads deadlocks the children — the parent waits in `as_completed` forever,
+printing nothing. See [web-app.md](web-app.md) §The fork deadlock.
 
 ## `flag-chi2` — flagging in place
 

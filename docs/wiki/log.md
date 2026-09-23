@@ -8,6 +8,14 @@ last_verified_commit: de24898
 
 # Wiki changelog
 
+## 2026-09-19 — chi-squared browser (serve-ui branch)
+
+- **Added** `web-app.md` for `surfvis serve`: the zarr contract written by
+  `chi2 --dataout`, the xarray-ms behaviour it relies on (partition schema,
+  MSv4 column resolution via `data_groups`), why the colour scale is log, and
+  the spawn-vs-fork deadlock.
+- **Updated** `chi2-pipeline.md`: `--dataout` is no longer vestigial.
+
 ## 2026-09-19 — conversion review pass (verified at `c3bd176`)
 
 - **Revised** `cli-contract.md`: the typer dialect is closed and enforced at

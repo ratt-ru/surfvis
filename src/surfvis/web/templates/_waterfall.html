@@ -1,0 +1,36 @@
+<div class="panel">
+  <div class="panel-head">
+    <h2>{{ name1 }} &times; {{ name2 }}</h2>
+    <p class="meta">
+      &chi;<sup>2</sup>/dof {{ "%.2f"|format(value) }} &middot;
+      chunk: time {{ t0 }}&ndash;{{ tf }}, channels {{ chan0 }}&ndash;{{ chanf }}
+      <span class="swatch"></span> outlined below
+    </p>
+  </div>
+
+  <form class="controls sub"
+        hx-get="/waterfall" hx-target="#waterfall" hx-trigger="change">
+    {% for key, value in request.query_params.items() %}
+      {% if key not in ("column", "quantity") %}
+      <input type="hidden" name="{{ key }}" value="{{ value }}">
+      {% endif %}
+    {% endfor %}
+    <label>column
+      <select name="column">
+        {% for name in columns %}
+        <option value="{{ name }}" {% if name == column %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>quantity
+      <select name="quantity">
+        {% for name in quantities %}
+        <option value="{{ name }}" {% if name == quantity %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </form>
+
+  <img class="waterfall" src="/waterfall.png?{{ query }}"
+       alt="Waterfall for baseline {{ name1 }} to {{ name2 }}">
+</div>

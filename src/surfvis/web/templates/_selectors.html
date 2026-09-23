@@ -1,0 +1,56 @@
+<form class="controls"
+      hx-get="/heatmap"
+      hx-target="#heatmap"
+      hx-trigger="change from:(.binsel), load delay:1ms">
+  <label>field
+    <select name="field"
+            hx-get="/scans" hx-target="#selectors" hx-include="closest form" hx-swap="innerHTML">
+      {% for value in store.fields %}
+      <option value="{{ value }}" {% if value == field %}selected{% endif %}>{{ value }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label>spw
+    <select name="spw"
+            hx-get="/scans" hx-target="#selectors" hx-include="closest form" hx-swap="innerHTML">
+      {% for value in store.spws(field) %}
+      <option value="{{ value }}" {% if value == spw %}selected{% endif %}>{{ value }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label>scan
+    <select name="scan" class="binsel">
+      {% for value in store.scan_numbers(field, spw) %}
+      <option value="{{ value }}" {% if value == scan %}selected{% endif %}>{{ value }}</option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label>time bin
+    <select name="t" class="binsel">
+      {% for value in times %}<option value="{{ value }}">{{ value }}</option>{% endfor %}
+    </select>
+  </label>
+
+  <label>freq bin
+    <select name="f" class="binsel">
+      {% for value in freqs %}<option value="{{ value }}">{{ value }}</option>{% endfor %}
+    </select>
+  </label>
+
+  <label>pol
+    <select name="c" class="binsel">
+      {% for value in corrs %}<option value="{{ value }}">{{ value }}</option>{% endfor %}
+    </select>
+  </label>
+
+  <label>scale
+    <select name="scale" class="binsel">
+      <option value="log">log</option>
+      <option value="robust">robust</option>
+      <option value="full">full</option>
+    </select>
+  </label>
+</form>

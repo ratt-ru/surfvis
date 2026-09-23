@@ -1,0 +1,33 @@
+<div class="panel">
+  <div class="panel-head">
+    <h2>&chi;<sup>2</sup>/dof &mdash; antenna &times; antenna</h2>
+    <p class="meta">
+      time slots {{ chunk.t0 }}&ndash;{{ chunk.tf }} &middot;
+      channels {{ chunk.chan0 }}&ndash;{{ chunk.chanf }} &middot;
+      {{ nvalid }} pairs &middot;
+      median {{ "%.2f"|format(median) }} &middot;
+      worst {{ "%.2f"|format(worst) }}
+    </p>
+  </div>
+
+  <div class="heatmap-row">
+    <div class="grid-wrap">
+      <div class="grid" style="grid-template-columns: repeat({{ nant }}, 1fr);">
+        {% for p in range(nant) %}{% for q in range(nant) %}<i
+          style="background:{{ colours[p][q] }}"
+          hx-get="/waterfall?{{ query }}&p={{ p }}&q={{ q }}"
+          hx-target="#waterfall"
+          title="{{ names[p] }} &times; {{ names[q] }}"></i>{% endfor %}{% endfor %}
+      </div>
+      <p class="axis">antenna2 &rarr; (rows: antenna1)</p>
+    </div>
+
+    <figure class="hist">
+      <img src="/histogram.png?{{ query }}&scale={{ scale }}"
+           alt="Histogram of chi-squared per degree of freedom over all antenna pairs">
+      <figcaption>
+        {{ scale }} scale, {{ "%.3g"|format(vmin) }} &ndash; {{ "%.3g"|format(vmax) }}
+      </figcaption>
+    </figure>
+  </div>
+</div>

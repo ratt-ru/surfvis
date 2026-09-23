@@ -9,6 +9,7 @@ from pathlib import Path
 import dask
 import numpy as np
 from daskms import xds_from_storage_ms as xds_from_ms
+from daskms import xds_from_storage_table as xds_from_table
 
 from surfvis.utils.plotting import makeplot, surfchisq_plot
 
@@ -32,7 +33,9 @@ def chi2(
         rcol: Residual column.
         wcol: Weight column. ``SIGMA_SPECTRUM`` initialises weights as 1/sigma**2.
         fcol: Flag column.
-        dataout: Output name of the zarr dataset. Defaults to ``$CWD/chi2``.
+        dataout: Output name of the zarr dataset holding chi-squared and counts
+            per (time bin, freq bin, corr, antenna, antenna). Defaults to
+            ``$CWD/chi2.zarr``. This is what ``surfvis serve`` reads.
         imagesout: Output folder for images. Defaults to ``$CWD/chi2``.
         nthreads: Number of worker processes (also the dask thread-pool size).
         ntimes: Number of unique times in each chunk. ``None`` means all of them.
@@ -43,7 +46,7 @@ def chi2(
 
     msname = str(ms).rstrip("/")
 
-    dataout = Path(str(dataout)) if dataout is not None else Path(os.getcwd()) / "chi2"
+    dataout = Path(str(dataout)) if dataout is not None else Path(os.getcwd()) / "chi2.zarr"
     if dataout.is_dir():
         print(f"Removing existing {dataout} folder")
         shutil.rmtree(dataout)
@@ -115,17 +118,28 @@ def chi2(
         table_schema=schema,
     )
 
+    ncorr_total = xds[0].corr.size
     if not use_corrs:
         print("Using only diagonal correlations")
-        corrs = [0, -1] if len(xds[0].corr) > 1 else [0]
+        corrs = [0, -1] if ncorr_total > 1 else [0]
     else:
         corrs = list(use_corrs)
         print(f"Using correlations {corrs}")
     ncorr = len(corrs)
+    # -1 and friends are positional; resolve them so the zarr records real
+    # polarization indices, not offsets into use_corrs.
+    pol_idx = [c % ncorr_total for c in corrs]
+
+    ant_ds = xds_from_table(f"{msname}::ANTENNA")[0]
+    antenna_names = [str(n) for n in ant_ds.NAME.values]
+    nant = len(antenna_names)
 
     chi2s = {}
     counts = {}
-    futures = []
+    # Per-chunk cubes, keyed the same way, so the zarr keeps what the PNGs throw away.
+    cubes = {}
+    keys = {}
+    futures = {}
     foldername = str(imagesout).rstrip("/")
     # Spawn, not fork: dask's ThreadPool is already running by this point, and
     # forking a process with live threads deadlocks the children.
@@ -173,12 +187,17 @@ def chi2(
                             basename + f"t{t}_f{f}_c{c}.png",
                             f"t {t0}-{tf}, chan {chan0}-{chanf}, corr {c}",
                         )
-                        futures.append(fut)
+                        futures[fut] = (i, t, f, c)
 
             # to reduce over time, freq and corr at the end
-            nant = np.maximum(ant1.compute().max(), ant2.compute().max()) + 1
-            chi2s[f"field{field}_spw{spw}_scan{scan}"] = np.zeros((nant, nant), dtype=float)
-            counts[f"field{field}_spw{spw}_scan{scan}"] = np.zeros((nant, nant), dtype=float)
+            key = f"field{field}_spw{spw}_scan{scan}"
+            keys[i] = (key, int(field), int(spw), int(scan))
+            chi2s[key] = np.zeros((nant, nant), dtype=float)
+            counts[key] = np.zeros((nant, nant), dtype=float)
+            cubes[i] = (
+                np.zeros((ntime, nfreq, ncorr, nant, nant), dtype=float),
+                np.zeros((ntime, nfreq, ncorr, nant, nant), dtype=float),
+            )
             print(f"Submitted field{field}_spw{spw}_scan{scan}")
 
         # reduce per scan
@@ -190,6 +209,29 @@ def chi2(
             field, spw, scan, chi2_chunk, count = fut.result()
             chi2s[f"field{field}_spw{spw}_scan{scan}"] += chi2_chunk
             counts[f"field{field}_spw{spw}_scan{scan}"] += count
+            i, t, f, c = futures[fut]
+            chi2_cube, count_cube = cubes[i]
+            # A chunk only spans the antennas present in it; pad into the full grid.
+            na = chi2_chunk.shape[0]
+            chi2_cube[t, f, c, :na, :na] = chi2_chunk
+            count_cube[t, f, c, :na, :na] = count
+        print()
+
+    _write_zarr_dataset(
+        dataout,
+        cubes,
+        keys,
+        tbin_idx,
+        tbin_counts,
+        fbin_idx,
+        fbin_counts,
+        pol_idx,
+        antenna_names,
+        msname,
+        rcol,
+        wcol,
+        fcol,
+    )
 
     # LB - is it worth doing this in parallel?
     print("Plotting per scan")
@@ -205,3 +247,67 @@ def chi2(
 
         basename = foldername + f"/field{field}" + f"/spw{spw}" + f"/scan{scan}/"
         makeplot(chi2_dof, basename + "combined.png", f"scan {scan}.png")
+
+
+def _write_zarr_dataset(
+    dataout,
+    cubes,
+    keys,
+    tbin_idx,
+    tbin_counts,
+    fbin_idx,
+    fbin_counts,
+    pol_idx,
+    antenna_names,
+    msname,
+    rcol,
+    wcol,
+    fcol,
+):
+    """Write the per-chunk chi-squared cubes to a zarr store.
+
+    One group per (field, spw, scan), because the number of time and frequency
+    bins differs between them. Bin bounds ride along as coordinates so a reader
+    can locate a chunk inside the scan's waterfall without re-deriving the
+    chunking.
+    """
+    import xarray as xr
+
+    print(f"Writing chi-squared dataset to {dataout}")
+    nant = len(antenna_names)
+    attrs = {
+        "ms": str(msname),
+        "rcol": rcol,
+        "wcol": wcol,
+        "fcol": fcol,
+        "antenna_names": list(antenna_names),
+    }
+
+    for i, (chi2_cube, count_cube) in cubes.items():
+        _, field, spw, scan = keys[i]
+        ntime, nfreq, ncorr = chi2_cube.shape[:3]
+        t0 = np.asarray(tbin_idx[i][:ntime], dtype=int)
+        tf = t0 + np.asarray(tbin_counts[i][:ntime], dtype=int)
+        chan0 = np.asarray(fbin_idx[i][:nfreq], dtype=int)
+        chanf = chan0 + np.asarray(fbin_counts[i][:nfreq], dtype=int)
+
+        dims = ("time_bin", "freq_bin", "corr", "antenna1", "antenna2")
+        ds = xr.Dataset(
+            data_vars={
+                "chi2": (dims, chi2_cube),
+                "counts": (dims, count_cube),
+                "t0": ("time_bin", t0),
+                "tf": ("time_bin", tf),
+                "chan0": ("freq_bin", chan0),
+                "chanf": ("freq_bin", chanf),
+            },
+            coords={
+                "time_bin": np.arange(ntime),
+                "freq_bin": np.arange(nfreq),
+                "corr": np.asarray(pol_idx[:ncorr], dtype=int),
+                "antenna1": np.arange(nant),
+                "antenna2": np.arange(nant),
+            },
+            attrs={**attrs, "field": field, "spw": spw, "scan": scan},
+        )
+        ds.to_zarr(dataout, group=f"field{field}/spw{spw}/scan{scan}", mode="a")

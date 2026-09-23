@@ -3,7 +3,7 @@ type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
 timestamp: 2026-09-18
-last_verified_commit: PENDING
+last_verified_commit: 57c55fc
 ---
 
 # Wiki changelog

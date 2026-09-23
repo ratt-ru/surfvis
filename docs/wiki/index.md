@@ -3,7 +3,7 @@ type: index
 title: surfvis LLM wiki
 description: Progressive-disclosure listing of the in-repo knowledge bundle.
 timestamp: 2026-09-18
-last_verified_commit: PENDING
+last_verified_commit: 57c55fc
 ---
 
 # surfvis LLM wiki

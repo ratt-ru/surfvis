@@ -3,12 +3,12 @@ type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
 timestamp: 2026-09-18
-last_verified_commit: de24898
+last_verified_commit: PENDING
 ---
 
 # Wiki changelog
 
-## 2026-09-19 — chi-squared browser (serve-ui branch)
+## 2026-09-19 — chi-squared browser (verified at `0070303`)
 
 - **Added** `web-app.md` for `surfvis serve`: the zarr contract written by
   `chi2 --dataout`, the xarray-ms behaviour it relies on (partition schema,

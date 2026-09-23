@@ -1,0 +1,81 @@
+cabs:
+  chi2:
+    flavour: python
+    command: surfvis.core.chi2.chi2
+    name: chi2
+    info:
+      Create per-baseline chi-squared plots from a Measurement Set.
+    image: ghcr.io/ratt-ru/surfvis:latest
+    inputs:
+      ms:
+        info:
+          Measurement Set to inspect.
+        dtype: MS
+        required: true
+        policies:
+          positional: true
+        metadata:
+          rich_help_panel: Inputs
+      rcol:
+        info:
+          Residual column.
+        default: RESIDUAL
+        metadata:
+          rich_help_panel: Inputs
+      wcol:
+        info:
+          Weight column.
+          The special value SIGMA_SPECTRUM can be passed to initialise the weights as 1/sigma**2.
+        default: WEIGHT_SPECTRUM
+        metadata:
+          rich_help_panel: Inputs
+      fcol:
+        info:
+          Flag column.
+        default: FLAG
+        metadata:
+          rich_help_panel: Inputs
+      nthreads:
+        info:
+          Number of dask threads to use.
+        dtype: int
+        default: 4
+        metadata:
+          rich_help_panel: Inputs
+      ntimes:
+        info:
+          Number of unique times in each chunk.
+          Defaults to all of them.
+        dtype: Optional[int]
+        metadata:
+          rich_help_panel: Inputs
+      nfreqs:
+        info:
+          Number of frequencies in a chunk.
+          Set to -1 to use all of them.
+        dtype: int
+        default: 128
+        metadata:
+          rich_help_panel: Inputs
+      use-corrs:
+        info:
+          Comma separated list of correlations to use.
+          Defaults to the diagonal correlations.
+        dtype: Optional[List[int]]
+        metadata:
+          rich_help_panel: Inputs
+    outputs:
+      dataout:
+        dtype: Directory
+        info:
+          Output name of zarr dataset.
+          Saved in CWD/chi2 by default.
+        metadata:
+          rich_help_panel: Outputs
+      imagesout:
+        dtype: Directory
+        info:
+          Output folder to place images.
+          Saved in CWD/chi2 by default.
+        metadata:
+          rich_help_panel: Outputs

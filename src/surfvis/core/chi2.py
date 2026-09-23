@@ -1,6 +1,7 @@
 """Per-baseline chi-squared plots from a Measurement Set."""
 
 import concurrent.futures as cf
+import multiprocessing as mp
 import os
 import shutil
 from pathlib import Path
@@ -126,7 +127,9 @@ def chi2(
     counts = {}
     futures = []
     foldername = str(imagesout).rstrip("/")
-    with cf.ProcessPoolExecutor(max_workers=nthreads) as executor:
+    # Spawn, not fork: dask's ThreadPool is already running by this point, and
+    # forking a process with live threads deadlocks the children.
+    with cf.ProcessPoolExecutor(max_workers=nthreads, mp_context=mp.get_context("spawn")) as executor:
         for i, ds in enumerate(xds):
             field = ds.FIELD_ID
             spw = ds.DATA_DESC_ID

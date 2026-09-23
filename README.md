@@ -122,13 +122,6 @@ The pre-commit hook regenerates cabs for you. `docs/wiki/` is the canonical
 reference for how this repo is put together — start at
 [docs/wiki/index.md](docs/wiki/index.md).
 
-Remaining CI/CD setup (PyPI trusted publishing, the GitHub App used by the
-`update-cabs` workflow, branch protection) is described by:
-
-```bash
-uv run surfvis onboard
-```
-
 ## Credits
 
 Originally written by Ian Heywood (`ianh@astro.ox.ac.uk`).

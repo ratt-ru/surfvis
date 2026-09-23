@@ -70,8 +70,3 @@ def test_roundtrip_chi2() -> None:
 def test_roundtrip_flag_chi2() -> None:
     """The flag-chi2 command must round-trip cleanly through a cab."""
     _assert_roundtrip("flag_chi2")
-
-
-def test_roundtrip_onboard() -> None:
-    """The onboard command must round-trip cleanly through a cab."""
-    _assert_roundtrip("onboard")

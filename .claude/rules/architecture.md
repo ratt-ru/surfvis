@@ -11,13 +11,13 @@ surfvis/
 │   ├── _container_image.py    # CONTAINER_IMAGE — single source of truth for the image tag
 │   ├── cli/                   # Lightweight Typer wrappers. THIS is what generate-cabs parses.
 │   │   ├── __init__.py        # Builds the Typer `app` and registers subcommands
-│   │   └── onboard.py         # One file per subcommand (delete onboard once setup is done)
+│   │   └── chi2.py            # One file per subcommand
 │   ├── core/                  # Real implementations. Heavy deps live here.
 │   │   ├── __init__.py
-│   │   └── onboard.py         # Mirrors cli/onboard.py — same function name, no decorators
+│   │   └── chi2.py            # Mirrors cli/chi2.py — same function name, no decorators
 │   └── cabs/                  # AUTO-GENERATED Stimela YAMLs. Do NOT hand-edit.
 │       ├── __init__.py
-│       └── onboard.yml
+│       └── chi2.yml
 ├── tests/
 │   ├── test_install.py
 │   └── test_roundtrip.py      # Guards the CLI → cab → CLI round-trip
@@ -47,7 +47,7 @@ surfvis/
 2. Create `src/surfvis/core/<name>.py` with the real implementation —
    same function name, no decorators, free to import heavy deps.
 3. Register the new command in `src/surfvis/cli/__init__.py` (next to
-   the existing `onboard` registration; mirror its pattern).
+   the existing registrations; mirror their pattern).
 4. Commit. The pre-commit hook regenerates `src/surfvis/cabs/<name>.yml`
    automatically.
 

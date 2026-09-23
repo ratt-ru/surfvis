@@ -13,7 +13,6 @@ app, several commands:
 | `surfvis surf` | `core/surf.py` | One time/frequency PNG per baseline. |
 | `surfvis chi2` | `core/chi2.py` | Per-(time, freq, corr) chi-squared images plus a per-scan combination. |
 | `surfvis flag-chi2` | `core/flag_chi2.py` | Flag visibilities whose chi-squared exceeds a threshold, in place. |
-| `surfvis onboard` | `core/onboard.py` | Prints remaining CI/CD setup steps. Delete once GitHub is configured. |
 
 This is a [hip-cargo](https://github.com/landmanbester/hip-cargo) package: CLI
 commands are decorated so Stimela cab definitions are generated from the CLI
@@ -34,8 +33,12 @@ uv run hip-cargo generate-cabs --module 'src/surfvis/cli/*.py' --output-dir src/
 ```
 
 The heavy stack (python-casacore, dask-ms, numba) is **not** in the dev
-environment, so anything touching a Measurement Set skips locally. Run those in
-the container:
+environment, so anything touching a Measurement Set skips locally. That is only
+true of a clean venv — the extras drift in easily, and then the MS tests start
+running locally and the suite stops resembling CI. `uv sync --group dev --group
+test --exact` prunes it back.
+
+Run the MS tests in the container:
 
 ```bash
 docker build -t surfvis:local .
@@ -45,7 +48,7 @@ docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/src -w /src \
    PYTHONPATH=/tmp/t:/src/src:/src /tmp/t/bin/pytest tests/ -q -W ignore"
 ```
 
-That is the only way to run the full suite (15 tests). **CI does not run them** —
+That is the only way to run the full suite (14 tests). **CI does not run them** —
 `.github/workflows/ci.yml` installs the lightweight package only, deliberately,
 since python-casacore and numba make CI slow and brittle. Verify locally.
 
@@ -126,7 +129,7 @@ build its view without them. Keep them when editing the fixture.
 
 **A green test run proves less than it looks.** The heavy module skips at
 *import*, so pytest reports one skip for the whole file: a lightweight run says
-"10 passed, 1 skipped" while 5 tests did not run.
+"9 passed, 1 skipped" while 5 tests did not run.
 `tests/test_suite_integrity.py` pins the per-module test counts statically so a
 deletion fails loudly; update those counts deliberately when adding or removing
 a test.

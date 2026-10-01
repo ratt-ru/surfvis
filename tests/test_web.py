@@ -198,3 +198,44 @@ def test_routes(chi2_zarr):
 
     assert client.get("/heatmap?field=0&spw=0&scan=99&t=0&f=0&c=0").status_code == 404
     assert client.get("/heatmap?field=0&spw=0&scan=1&t=0&f=0&c=0&scale=nope").status_code == 400
+
+
+@needs_web
+def test_waterfall_sees_flags_written_after_the_first_read(chi2_zarr, tmp_path):
+    """A long-running server must not pin the flags it read first.
+
+    xarray-ms caches its tables in a process-global multiton whose TTL resets
+    on every access, and a real MS keeps FLAG in a TiledShapeStMan whose tile
+    cache belongs to that table object. Together they mean ``surfvis serve``
+    renders the flags as they were when it opened the partition, for the life
+    of the process, however often the MS is re-flagged underneath it.
+    """
+    import subprocess
+    import sys
+
+    from surfvis.web import msdata
+    from tests.fixtures.ms import copy_with_tiled_flags
+
+    ms = copy_with_tiled_flags(chi2_zarr["ms"]["path"], str(tmp_path / "reflagged.ms"))
+    names = chi2_zarr["ms"]["antenna_names"]
+
+    before = msdata.waterfall(ms, 0, 0, 1, names[0], names[2], 0, "RESIDUAL")
+    assert not before.flags[:, 7].any(), "fixture channel is unflagged to start with"
+
+    # The flagger is another program -- skarabina, CASA -- so the write has to
+    # come from another process. Writing through this process's own casacore
+    # handle would invalidate its table cache and hide the bug.
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; from casacore.tables import table; "
+            "t = table(sys.argv[1], readonly=False, ack=False); "
+            "f = t.getcol('FLAG'); f[:, 7, :] = True; t.putcol('FLAG', f); t.close()",
+            ms,
+        ],
+        check=True,
+    )
+
+    after = msdata.waterfall(ms, 0, 0, 1, names[0], names[2], 0, "RESIDUAL")
+    assert after.flags[:, 7].all(), "waterfall is still showing the flags from the first read"

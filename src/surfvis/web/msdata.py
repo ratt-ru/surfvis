@@ -13,6 +13,7 @@ verbatim as secondary variables, which is what makes the residual column
 surfchi2 works on plottable.
 """
 
+import os
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -25,6 +26,9 @@ QUANTITIES = ("amp", "phase", "real", "imag")
 # per (field, spw, scan) -- exactly how surfchi2 groups, so a partition's time
 # axis is the scan and no filtering is needed.
 PARTITION_SCHEMA = ("FIELD_ID", "DATA_DESC_ID", "SCAN_NUMBER")
+
+# Last-seen on-disk signature per MS, so a rewrite invalidates the caches.
+_FINGERPRINTS: dict[str, tuple] = {}
 
 
 @dataclass(frozen=True)
@@ -94,14 +98,84 @@ def data_group(ms: str, group: str = "base") -> DataGroup:
 
 
 @lru_cache(maxsize=8)
-def _open(ms: str, field: int, spw: int, scan: int) -> xarray.Dataset:
-    """Open one (field, spw, scan) partition. Cached -- opening is not free."""
+def _open_partition(ms: str, field: int, spw: int, scan: int, fingerprint: tuple) -> xarray.Dataset:
+    """Open one (field, spw, scan) partition. Cached -- opening is not free.
+
+    ``fingerprint`` takes no part in the work; it is in the signature so that a
+    Measurement Set rewritten on disk gets a different cache key.
+    """
     return xarray.open_dataset(
         ms,
         engine="xarray-ms:msv2",
         partition_schema=list(PARTITION_SCHEMA),
         partition_key=(("FIELD_ID", field), ("DATA_DESC_ID", spw), ("SCAN_NUMBER", scan)),
     )
+
+
+def _fingerprint(ms: str) -> tuple:
+    """A cheap signature of the MS's column storage on disk.
+
+    The ``table.f*`` files are the storage managers' data; writing FLAG bumps
+    the mtime and possibly the size of the ones holding it. ``table.lock`` is
+    deliberately not included -- it is touched by reads as well, so it would
+    invalidate the caches on every request.
+    """
+    entries = []
+    try:
+        with os.scandir(ms) as listing:
+            for entry in listing:
+                if entry.name.startswith("table.f") and entry.is_file():
+                    stat = entry.stat()
+                    entries.append((entry.name, stat.st_mtime_ns, stat.st_size))
+    except OSError:
+        # Unreadable or gone; let the open itself produce the real error.
+        return ()
+    return tuple(sorted(entries))
+
+
+def _release_cached_tables() -> None:
+    """Drop the tables xarray-ms holds open, so the next read goes to disk.
+
+    xarray-ms keeps its tables in a process-global multiton cache whose entries
+    expire only after a period of *inactivity*, and a real MS stores FLAG in a
+    TiledShapeStMan whose tile cache belongs to the open table object. Clearing
+    our own caches is therefore not enough: reopening the dataset hands back
+    the same underlying table, still serving the flags it read first.
+
+    There is no public API for this, so the private cache is cleared under the
+    lock the multiton itself uses. If the internals move, freshness is lost but
+    nothing breaks, which is why this is defensive rather than strict.
+    """
+    try:
+        from rarg_python_patterns.multiton import Multiton
+    except ImportError:  # pragma: no cover - xarray-ms always brings it
+        return
+    cache = getattr(Multiton, "_INSTANCE_CACHE", None)
+    lock = getattr(Multiton, "_INSTANCE_LOCK", None)
+    if cache is None or lock is None:  # pragma: no cover - upstream moved
+        return
+    with lock:
+        cache.clear()
+        heap = getattr(Multiton, "_EXPIRY_HEAP", None)
+        if heap is not None:
+            heap.clear()
+
+
+def _open(ms: str, field: int, spw: int, scan: int) -> xarray.Dataset:
+    """Open one partition, re-reading it if the MS changed on disk.
+
+    A browser is long-running and the Measurement Set under it is not static --
+    a flagging run rewrites FLAG while the page is open. Without this check the
+    waterfalls keep showing the flags the process read first, which looks like
+    a plotting bug and is impossible to tell apart from one.
+    """
+    fingerprint = _fingerprint(ms)
+    if _FINGERPRINTS.get(ms) != fingerprint:
+        _open_partition.cache_clear()
+        data_group.cache_clear()
+        _release_cached_tables()
+        _FINGERPRINTS[ms] = fingerprint
+    return _open_partition(ms, field, spw, scan, fingerprint)
 
 
 def available_columns(ms: str, field: int, spw: int, scan: int) -> list[str]:

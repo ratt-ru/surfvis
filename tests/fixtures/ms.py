@@ -153,3 +153,44 @@ def make_ms(
         "antenna_names": names,
         "hot": hot,
     }
+
+
+def copy_with_tiled_flags(src: str, dest: str) -> str:
+    """Copy an MS, re-storing FLAG in a TiledShapeStMan.
+
+    ``default_ms`` gives FLAG a StandardStMan, which re-reads from disk on
+    every access. Real Measurement Sets -- anything written by the MeerKAT
+    archive, CASA or dask-ms -- use a TiledShapeStMan instead, whose tile cache
+    belongs to the open table object and therefore keeps serving the flags a
+    long-running reader saw first. Tests about staleness need the storage
+    manager the field actually uses.
+
+    Args:
+        src: An existing Measurement Set.
+        dest: Where to write the copy.
+
+    Returns:
+        ``dest``.
+    """
+    import shutil
+
+    from casacore.tables import makearrcoldesc, maketabdesc, table
+
+    shutil.copytree(src, dest)
+    t = table(dest, readonly=False, ack=False)
+    try:
+        flags = t.getcol("FLAG")
+        _, nchan, ncorr = flags.shape
+        t.removecols("FLAG")
+        t.addcols(
+            maketabdesc(makearrcoldesc("FLAG", False, ndim=2, shape=[nchan, ncorr], valuetype="boolean")),
+            {
+                "TYPE": "TiledShapeStMan",
+                "NAME": "TiledFlag",
+                "SPEC": {"DEFAULTTILESHAPE": [ncorr, nchan, 4]},
+            },
+        )
+        t.putcol("FLAG", flags)
+    finally:
+        t.close()
+    return dest

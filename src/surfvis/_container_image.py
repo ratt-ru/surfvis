@@ -1,4 +1,4 @@
-CONTAINER_IMAGE = "ghcr.io/ratt-ru/surfvis:latest"
+CONTAINER_IMAGE = "ghcr.io/ratt-ru/surfvis:serve-ui"
 
 # Optional GPU passthrough for the container-fallback path.
 # Set GPU = True for a CUDA/GPU image, or "auto" to request a GPU only

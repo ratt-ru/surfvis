@@ -5,7 +5,7 @@ cabs:
     name: chi2
     info:
       Create per-baseline chi-squared plots from a Measurement Set.
-    image: ghcr.io/ratt-ru/surfvis:latest
+    image: ghcr.io/ratt-ru/surfvis:serve-ui
     inputs:
       ms:
         info:

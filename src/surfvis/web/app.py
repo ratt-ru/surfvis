@@ -1,6 +1,7 @@
 """FastAPI application wiring the chi-squared store to waterfall plots."""
 
 from pathlib import Path
+from urllib.parse import urlencode
 
 import numpy as np
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -34,7 +35,13 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
     ms_path = str(ms) if ms is not None else store.chunk(Selection(*first, 0, 0, store.bins(*first)[2][0])).ms
 
     def _selection(field, spw, scan, t, f, c) -> Selection:
-        return Selection(field=field, spw=spw, scan=scan, time_bin=t, freq_bin=f, corr=c)
+        return Selection(field=field, spw=spw, scan=scan, time_bin=t, freq_bin=f, product=c)
+
+    def _chunk(field, spw, scan, t, f, c):
+        try:
+            return store.chunk(_selection(field, spw, scan, t, f, c))
+        except (KeyError, IndexError, ValueError) as exc:
+            raise HTTPException(status_code=404, detail=f"No such chunk: {exc}") from exc
 
     @app.get("/", response_class=HTMLResponse)
     def index(request: Request):
@@ -85,13 +92,10 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
         scan: int = Query(...),
         t: int = Query(0),
         f: int = Query(0),
-        c: int = Query(0),
+        c: str = Query(...),
         scale: str = Query("log"),
     ):
-        try:
-            chunk = store.chunk(_selection(field, spw, scan, t, f, c))
-        except (KeyError, IndexError, ValueError) as exc:
-            raise HTTPException(status_code=404, detail=f"No such chunk: {exc}") from exc
+        chunk = _chunk(field, spw, scan, t, f, c)
 
         try:
             norm, vmin, vmax = render.make_norm(chunk.chi2_dof, scale)
@@ -113,10 +117,9 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
                 "nvalid": int(finite.size),
                 "worst": float(np.nanmax(chunk.chi2_dof)) if finite.size else float("nan"),
                 "median": float(np.median(finite)) if finite.size else float("nan"),
-                "query": f"field={field}&spw={spw}&scan={scan}&t={t}&f={f}&c={c}",
+                "query": urlencode({"field": field, "spw": spw, "scan": scan, "t": t, "f": f, "c": c}),
                 "scales": render.SCALES,
-                "columns": _columns(ms_path, field, spw, scan),
-                "default_column": chunk.rcol,
+                "product": c,
             },
         )
 
@@ -127,13 +130,37 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
         scan: int = Query(...),
         t: int = Query(0),
         f: int = Query(0),
-        c: int = Query(0),
+        c: str = Query(...),
         scale: str = Query("log"),
     ):
-        chunk = store.chunk(_selection(field, spw, scan, t, f, c))
+        chunk = _chunk(field, spw, scan, t, f, c)
         norm, _, _ = render.make_norm(chunk.chi2_dof, scale)
-        png = render.histogram_png(chunk.chi2_dof, norm, title=f"scan {scan}  t{t} f{f} pol{c}")
+        png = render.histogram_png(chunk.chi2_dof, norm, title=f"scan {scan}  t{t} f{f} {c}")
         return Response(png, media_type="image/png")
+
+    def _resolve(column: str) -> str:
+        """MSv4 name for a column, so ``DATA`` from chi2 matches ``VISIBILITY`` in the menus."""
+        if not column:
+            return column
+        try:
+            return msdata.data_group(ms_path).resolve(column)
+        except Exception:
+            return column
+
+    def _waterfall_settings(chunk, product, column, model, gtable, flagversion, quantity):
+        """Fill unset waterfall controls from how chi2 formed the heatmap.
+
+        ``None`` means "not given", so the heatmap's setting applies; an empty
+        string is a deliberate "none" (no model, no gains).
+        """
+        return {
+            "product": product or chunk.selection.product,
+            "column": _resolve(column or chunk.rcol),
+            "model": _resolve(chunk.mcol if model is None else model),
+            "gtable": chunk.gtable if gtable is None else gtable.strip(),
+            "flagversion": flagversion or "",
+            "quantity": quantity,
+        }
 
     @app.get("/waterfall", response_class=HTMLResponse)
     def waterfall(
@@ -143,29 +170,63 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
         scan: int = Query(...),
         t: int = Query(...),
         f: int = Query(...),
-        c: int = Query(...),
+        c: str = Query(...),
         p: int = Query(...),
         q: int = Query(...),
+        product: str = Query(""),
         column: str = Query(""),
+        model: str | None = Query(None),
+        gtable: str | None = Query(None),
+        flagversion: str = Query(""),
         quantity: str = Query("amp"),
     ):
-        """Return the <img> wrapper; the browser then fetches the PNG."""
-        chunk = store.chunk(_selection(field, spw, scan, t, f, c))
+        """Return the controls and <img> wrapper; the browser then fetches the PNG.
+
+        The controls drive the waterfall only. The heatmap is what ``chi2``
+        computed, so the panel says when the two no longer describe the same
+        quantity.
+        """
+        chunk = _chunk(field, spw, scan, t, f, c)
         names = chunk.antenna_names
-        column = column or chunk.rcol
-        query = f"field={field}&spw={spw}&scan={scan}&t={t}&f={f}&c={c}&p={p}&q={q}&column={column}&quantity={quantity}"
+        settings = _waterfall_settings(chunk, product, column, model, gtable, flagversion, quantity)
+        base = {"field": field, "spw": spw, "scan": scan, "t": t, "f": f, "c": c, "p": p, "q": q}
+        problems = msdata.check(
+            ms_path,
+            field,
+            spw,
+            scan,
+            settings["product"],
+            settings["column"],
+            model=settings["model"],
+            gtable=settings["gtable"],
+            flagversion=settings["flagversion"],
+        )
+        heatmap_settings = (c, _resolve(chunk.rcol), _resolve(chunk.mcol), chunk.gtable, "")
+        current = (
+            settings["product"],
+            settings["column"],
+            settings["model"],
+            settings["gtable"],
+            settings["flagversion"],
+        )
         return templates.TemplateResponse(
             request,
             "_waterfall.html",
             {
-                "query": query,
+                "base": base,
+                "query": urlencode({**base, **settings}),
                 "name1": names[p],
                 "name2": names[q],
                 "value": float(chunk.chi2_dof[p, q]),
                 "columns": _columns(ms_path, field, spw, scan),
-                "column": column,
-                "quantity": quantity,
+                "models": _columns(ms_path, field, spw, scan, complex_only=True),
+                "products": _products(ms_path, field, spw, scan),
+                "flagversions": msdata.flag_versions(ms_path),
                 "quantities": msdata.QUANTITIES,
+                "s": settings,
+                "chunk": chunk,
+                "differs": current != heatmap_settings,
+                "problems": problems,
                 "t0": chunk.t0,
                 "tf": chunk.tf,
                 "chan0": chunk.chan0,
@@ -180,14 +241,19 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
         scan: int = Query(...),
         t: int = Query(...),
         f: int = Query(...),
-        c: int = Query(...),
+        c: str = Query(...),
         p: int = Query(...),
         q: int = Query(...),
+        product: str = Query(""),
         column: str = Query(""),
+        model: str | None = Query(None),
+        gtable: str | None = Query(None),
+        flagversion: str = Query(""),
         quantity: str = Query("amp"),
     ):
-        chunk = store.chunk(_selection(field, spw, scan, t, f, c))
+        chunk = _chunk(field, spw, scan, t, f, c)
         names = chunk.antenna_names
+        settings = _waterfall_settings(chunk, product, column, model, gtable, flagversion, quantity)
         try:
             wf = msdata.waterfall(
                 ms_path,
@@ -196,12 +262,10 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
                 scan=scan,
                 name1=names[p],
                 name2=names[q],
-                polarization=c,
-                column=column or chunk.rcol,
-                quantity=quantity,
                 rect=(chunk.t0, chunk.tf, chunk.chan0, chunk.chanf),
+                **settings,
             )
-        except (KeyError, ValueError) as exc:
+        except (KeyError, ValueError, FileNotFoundError) as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         return Response(render.waterfall_png(wf), media_type="image/png")
 
@@ -212,9 +276,17 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
     return app
 
 
-def _columns(ms: str, field: int, spw: int, scan: int) -> list[str]:
+def _columns(ms: str, field: int, spw: int, scan: int, complex_only: bool = False) -> list[str]:
     """Plottable columns, or an empty list if the MS cannot be opened."""
     try:
-        return msdata.available_columns(ms, field, spw, scan)
+        return msdata.available_columns(ms, field, spw, scan, complex_only=complex_only)
+    except Exception:
+        return []
+
+
+def _products(ms: str, field: int, spw: int, scan: int) -> list[str]:
+    """Correlations and formable Stokes parameters, or an empty list if the MS cannot be opened."""
+    try:
+        return msdata.available_products(ms, field, spw, scan)
     except Exception:
         return []

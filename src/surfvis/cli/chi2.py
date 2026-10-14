@@ -4,8 +4,10 @@ from typing import Annotated, Literal, NewType
 import typer
 from hip_cargo import (
     ListInt,
+    ListStr,
     StimelaMeta,
     parse_list_int,
+    parse_list_str,
     parse_upath,
     stimela_cab,
     stimela_output,
@@ -44,7 +46,7 @@ def chi2(
     rcol: Annotated[
         str,
         typer.Option(
-            help="Residual column.",
+            help="Residual column. With --mcol, the data column the model is subtracted from.",
             rich_help_panel="Inputs",
         ),
     ] = "RESIDUAL",
@@ -63,6 +65,23 @@ def chi2(
             rich_help_panel="Inputs",
         ),
     ] = "FLAG",
+    mcol: Annotated[
+        str | None,
+        typer.Option(
+            help="Model column, subtracted after gains are applied. "
+            "Use with --rcol DATA to form the residual on the fly.",
+            rich_help_panel="Inputs",
+        ),
+    ] = None,
+    gtable: Annotated[
+        Directory | None,
+        typer.Option(
+            parser=parse_upath,
+            help="QuartiCal gain term to correct by, such as gains.qc/NET. "
+            "Gains must be on the data's time and frequency grid, or constant along an axis.",
+            rich_help_panel="Inputs",
+        ),
+    ] = None,
     nthreads: Annotated[
         int,
         typer.Option(
@@ -89,6 +108,15 @@ def chi2(
         typer.Option(
             parser=parse_list_int,
             help="Comma separated list of correlations to use. Defaults to the diagonal correlations.",
+            rich_help_panel="Inputs",
+        ),
+    ] = None,
+    stokes: Annotated[
+        ListStr | None,
+        typer.Option(
+            parser=parse_list_str,
+            help="Comma separated Stokes parameters to compute as well, such as I,V. "
+            "Each needs the correlations it is formed from.",
             rich_help_panel="Inputs",
         ),
     ] = None,
@@ -142,10 +170,13 @@ def chi2(
                     rcol=rcol,
                     wcol=wcol,
                     fcol=fcol,
+                    mcol=mcol,
+                    gtable=gtable,
                     nthreads=nthreads,
                     ntimes=ntimes,
                     nfreqs=nfreqs,
                     use_corrs=use_corrs,
+                    stokes=stokes,
                     dataout=dataout,
                     imagesout=imagesout,
                 ),
@@ -160,10 +191,13 @@ def chi2(
                 rcol=rcol,
                 wcol=wcol,
                 fcol=fcol,
+                mcol=mcol,
+                gtable=gtable,
                 nthreads=nthreads,
                 ntimes=ntimes,
                 nfreqs=nfreqs,
                 use_corrs=use_corrs,
+                stokes=stokes,
                 dataout=dataout,
                 imagesout=imagesout,
             )
@@ -187,10 +221,13 @@ def chi2(
             rcol=rcol,
             wcol=wcol,
             fcol=fcol,
+            mcol=mcol,
+            gtable=gtable,
             nthreads=nthreads,
             ntimes=ntimes,
             nfreqs=nfreqs,
             use_corrs=use_corrs,
+            stokes=stokes,
             dataout=dataout,
             imagesout=imagesout,
         ),

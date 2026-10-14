@@ -30,7 +30,8 @@ header h1 { font-size: 1.05rem; margin: 0; letter-spacing: 0.04em; }
 .controls.sub { border: 0; padding: 0 0 0.6rem; }
 .controls label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .controls label.check { flex-direction: row; align-items: center; gap: 0.35rem; text-transform: none; letter-spacing: 0; font-size: 0.8rem; }
-select {
+.controls label.wide { flex: 1 1 16rem; }
+select, input[type="text"] {
   background: var(--panel); color: var(--text);
   border: 1px solid var(--line); border-radius: 4px; padding: 0.25rem 0.4rem; font-size: 0.85rem;
 }
@@ -58,5 +59,8 @@ main { display: flex; flex-direction: column; gap: 1rem; padding: 1rem; }
 
 .waterfall { display: block; width: 100%; background: #fff; border-radius: 6px; }
 .swatch { display: inline-block; width: 0.8rem; height: 0.8rem; vertical-align: -1px; border: 2px solid var(--accent); }
+
+.note { color: #f0c674; font-size: 0.78rem; margin: 0 0 0.6rem; }
+.problems { color: #ff7b72; font-size: 0.82rem; margin: 0.4rem 0; padding-left: 1.2rem; }
 
 @media (max-width: 720px) { .heatmap-row { flex-direction: column; } }

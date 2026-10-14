@@ -8,10 +8,12 @@ from pathlib import Path
 
 import dask
 import numpy as np
+import pyrap.tables
 from daskms import xds_from_storage_ms as xds_from_ms
 from daskms import xds_from_storage_table as xds_from_table
 
-from surfvis.utils.plotting import makeplot, surfchisq_plot
+from surfvis.utils import products as products_mod
+from surfvis.utils.plotting import makeplot, surfchisq_products_plot
 
 
 def chi2(
@@ -19,32 +21,44 @@ def chi2(
     rcol: str = "RESIDUAL",
     wcol: str = "WEIGHT_SPECTRUM",
     fcol: str = "FLAG",
+    mcol: str | None = None,
+    gtable: Path | None = None,
     dataout: Path | None = None,
     imagesout: Path | None = None,
     nthreads: int = 4,
     ntimes: int | None = None,
     nfreqs: int = 128,
     use_corrs: list[int] | None = None,
+    stokes: list[str] | None = None,
 ) -> None:
-    """Write per-(time, freq, corr) chi-squared images plus a per-scan combination.
+    """Write per-(time, freq, product) chi-squared images plus a per-scan combination.
+
+    The quantity is ``inv(G_p) R inv(G_q)^H - M`` per visibility, ``R`` being
+    ``rcol``, ``M`` the optional ``mcol`` and ``G`` the optional ``gtable``,
+    with weights propagated through the correction (see
+    :mod:`surfvis.utils.products`).
 
     Args:
         ms: Measurement Set to inspect.
-        rcol: Residual column.
+        rcol: Residual column, or the data column when ``mcol`` is given.
         wcol: Weight column. ``SIGMA_SPECTRUM`` initialises weights as 1/sigma**2.
         fcol: Flag column.
+        mcol: Model column, subtracted after correction.
+        gtable: QuartiCal gain term (``gains.qc/NET``) to correct by.
         dataout: Output name of the zarr dataset holding chi-squared and counts
-            per (time bin, freq bin, corr, antenna, antenna). Defaults to
+            per (time bin, freq bin, product, antenna, antenna). Defaults to
             ``$CWD/chi2.zarr``. This is what ``surfvis serve`` reads.
         imagesout: Output folder for images. Defaults to ``$CWD/chi2``.
         nthreads: Number of worker processes (also the dask thread-pool size).
         ntimes: Number of unique times in each chunk. ``None`` means all of them.
         nfreqs: Number of frequencies in a chunk. ``-1`` means all of them.
         use_corrs: Correlations to use. Defaults to the diagonal correlations.
+        stokes: Stokes parameters to compute as well, e.g. ``["I", "V"]``.
     """
     from multiprocessing.pool import ThreadPool
 
     msname = str(ms).rstrip("/")
+    gtable = str(gtable) if gtable is not None else None
 
     dataout = Path(str(dataout)) if dataout is not None else Path(os.getcwd()) / "chi2.zarr"
     if dataout.is_dir():
@@ -69,6 +83,7 @@ def chi2(
     )
 
     chunks = []
+    utimes = []
     rbin_idx = []
     rbin_counts = []
     tbin_idx = []
@@ -78,6 +93,7 @@ def chi2(
     for ds in xds:
         time = ds.TIME.values
         ut, counts = np.unique(time, return_counts=True)
+        utimes.append(ut)
         utpc = ut.size if ntimes in [None, 0, -1] else ntimes
         row_chunks = [np.sum(counts[i : i + utpc]) for i in range(0, ut.size, utpc)]
 
@@ -104,39 +120,61 @@ def chi2(
         fidx2 = np.append(fidx, nchan)
         fbin_counts.append(fidx2[1:] - fidx2[0:-1])
 
-    schema = {
-        rcol: {"dims": ("chan", "corr")},
-        wcol: {"dims": ("chan", "corr")},
-        fcol: {"dims": ("chan", "corr")},
-    }
+    columns = [rcol, wcol, fcol] + ([mcol] if mcol else [])
+    schema = {col: {"dims": ("chan", "corr")} for col in columns}
 
     xds = xds_from_ms(
         msname,
-        columns=[rcol, wcol, fcol, "ANTENNA1", "ANTENNA2", "TIME"],
+        columns=columns + ["ANTENNA1", "ANTENNA2", "TIME"],
         chunks=chunks,
         group_cols=["FIELD_ID", "DATA_DESC_ID", "SCAN_NUMBER"],
         table_schema=schema,
     )
 
-    ncorr_total = xds[0].corr.size
+    spw_freqs, corr_types = _spectral_setup(msname)
+    labels = products_mod.corr_labels(corr_types[int(xds[0].DATA_DESC_ID)])
+    for ds in xds:
+        if products_mod.corr_labels(corr_types[int(ds.DATA_DESC_ID)]) != labels:
+            raise ValueError("surfvis chi2 needs the same correlations in every spectral window")
+
+    ncorr_total = len(labels)
     if not use_corrs:
         print("Using only diagonal correlations")
         corrs = [0, -1] if ncorr_total > 1 else [0]
     else:
         corrs = list(use_corrs)
         print(f"Using correlations {corrs}")
-    ncorr = len(corrs)
-    # -1 and friends are positional; resolve them so the zarr records real
-    # polarization indices, not offsets into use_corrs.
-    pol_idx = [c % ncorr_total for c in corrs]
+    # -1 and friends are positional; resolve them to labels so the zarr records
+    # real polarizations, not offsets into use_corrs.
+    products = list(dict.fromkeys(labels[c % ncorr_total] for c in corrs))
+    products += [s for s in dict.fromkeys(s.upper() for s in (stokes or [])) if s not in products]
+    print(f"Products {products}")
 
     ant_ds = xds_from_table(f"{msname}::ANTENNA")[0]
     antenna_names = [str(n) for n in ant_ds.NAME.values]
     nant = len(antenna_names)
 
-    chi2s = {}
-    counts = {}
-    # Per-chunk cubes, keyed the same way, so the zarr keeps what the PNGs throw away.
+    gains = {}
+    if gtable is not None:
+        from surfvis.utils import gains as gains_mod
+
+        print(f"Applying gains from {gtable}: {gains_mod.describe(gtable)}")
+        for i, ds in enumerate(xds):
+            gains[i] = gains_mod.load(
+                gtable,
+                int(ds.FIELD_ID),
+                int(ds.DATA_DESC_ID),
+                int(ds.SCAN_NUMBER),
+                utimes[i],
+                spw_freqs[int(ds.DATA_DESC_ID)],
+                antenna_names,
+            )
+    full_jones = any(g.full for g in gains.values())
+    read = products_mod.needed(products, labels, full_jones=full_jones)
+    read_idx = [labels.index(c) for c in read]
+    nprod = len(products)
+
+    # Per-chunk cubes, so the zarr keeps what the PNGs throw away.
     cubes = {}
     keys = {}
     futures = {}
@@ -157,64 +195,56 @@ def chi2(
             nfreq = fbin_idx[i].size
             for t in range(ntime):
                 for f in range(nfreq):
-                    for c in range(ncorr):
-                        t0 = tbin_idx[i][t]
-                        tf = t0 + tbin_counts[i][t]
-                        chan0 = fbin_idx[i][f]
-                        chanf = chan0 + fbin_counts[i][f]
-                        row0 = rbin_idx[i][t]
-                        rowf = rbin_idx[i][t] + rbin_counts[i][t]
-                        dso = ds[{"row": slice(row0, rowf), "chan": slice(chan0, chanf)}]
-                        dso = dso.sel(corr=corrs)
-                        resid = dso.get(rcol).data
-                        if wcol == "SIGMA_SPECTRUM":
-                            weight = 1.0 / dso.get(wcol).data ** 2
-                        else:
-                            weight = dso.get(wcol).data
-                        flag = dso.get(fcol).data
-                        ant1 = dso.ANTENNA1.data
-                        ant2 = dso.ANTENNA2.data
-                        fut = executor.submit(
-                            surfchisq_plot,
-                            resid,
-                            weight,
-                            flag,
-                            ant1,
-                            ant2,
-                            field,
-                            spw,
-                            scan,
-                            basename + f"t{t}_f{f}_c{c}.png",
-                            f"t {t0}-{tf}, chan {chan0}-{chanf}, corr {c}",
-                        )
-                        futures[fut] = (i, t, f, c)
+                    t0 = tbin_idx[i][t]
+                    tf = t0 + tbin_counts[i][t]
+                    chan0 = fbin_idx[i][f]
+                    chanf = chan0 + fbin_counts[i][f]
+                    row0 = rbin_idx[i][t]
+                    rowf = rbin_idx[i][t] + rbin_counts[i][t]
+                    dso = ds[{"row": slice(row0, rowf), "chan": slice(chan0, chanf)}]
+                    dso = dso.isel(corr=read_idx)
+                    resid = dso.get(rcol).data
+                    if wcol == "SIGMA_SPECTRUM":
+                        weight = 1.0 / dso.get(wcol).data ** 2
+                    else:
+                        weight = dso.get(wcol).data
+                    fut = executor.submit(
+                        surfchisq_products_plot,
+                        products,
+                        read,
+                        resid,
+                        weight,
+                        dso.get(fcol).data,
+                        dso.ANTENNA1.data,
+                        dso.ANTENNA2.data,
+                        dso.TIME.data,
+                        dso.get(mcol).data if mcol else None,
+                        gains[i].subset(t0, tf, chan0, chanf) if gains else None,
+                        utimes[i][t0:tf],
+                        [basename + f"t{t}_f{f}_{p}.png" for p in products],
+                        [f"t {t0}-{tf}, chan {chan0}-{chanf}, {p}" for p in products],
+                    )
+                    futures[fut] = (i, t, f)
 
-            # to reduce over time, freq and corr at the end
-            key = f"field{field}_spw{spw}_scan{scan}"
-            keys[i] = (key, int(field), int(spw), int(scan))
-            chi2s[key] = np.zeros((nant, nant), dtype=float)
-            counts[key] = np.zeros((nant, nant), dtype=float)
+            keys[i] = (int(field), int(spw), int(scan))
             cubes[i] = (
-                np.zeros((ntime, nfreq, ncorr, nant, nant), dtype=float),
-                np.zeros((ntime, nfreq, ncorr, nant, nant), dtype=float),
+                np.zeros((ntime, nfreq, nprod, nant, nant), dtype=float),
+                np.zeros((ntime, nfreq, nprod, nant, nant), dtype=float),
             )
             print(f"Submitted field{field}_spw{spw}_scan{scan}")
 
-        # reduce per scan
         num_completed = 0
         num_futures = len(futures)
         for fut in cf.as_completed(futures):
             num_completed += 1
             print(f"\rProcessing: {num_completed}/{num_futures}", end="", flush=True)
-            field, spw, scan, chi2_chunk, count = fut.result()
-            chi2s[f"field{field}_spw{spw}_scan{scan}"] += chi2_chunk
-            counts[f"field{field}_spw{spw}_scan{scan}"] += count
-            i, t, f, c = futures[fut]
+            chi2_chunk, count = fut.result()
+            i, t, f = futures[fut]
             chi2_cube, count_cube = cubes[i]
             # A chunk only spans the antennas present in it; pad into the full grid.
-            na = chi2_chunk.shape[0]
-            chi2_cube[t, f, c, :na, :na] = chi2_chunk
-            count_cube[t, f, c, :na, :na] = count
+            na = chi2_chunk.shape[-1]
+            chi2_cube[t, f, :, :na, :na] = chi2_chunk
+            count_cube[t, f, :, :na, :na] = count
         print()
 
     _write_zarr_dataset(
@@ -225,28 +255,56 @@ def chi2(
         tbin_counts,
         fbin_idx,
         fbin_counts,
-        pol_idx,
+        products,
         antenna_names,
         msname,
-        rcol,
-        wcol,
-        fcol,
+        {
+            "rcol": rcol,
+            "wcol": wcol,
+            "fcol": fcol,
+            "mcol": mcol or "",
+            "gtable": gtable or "",
+            "corr_labels": list(labels),
+        },
     )
 
-    # LB - is it worth doing this in parallel?
+    # Correlations combine into one image per scan, as before; Stokes products
+    # are not independent of them, so each gets its own.
     print("Plotting per scan")
-    for key, val in chi2s.items():
-        field, spw, scan = key.split("_")
-        field = field.strip("field")
-        spw = spw.strip("spw")
-        scan = scan.strip("scan")
-        count = counts[key]
-        chi2_dof = np.zeros_like(val)
-        chi2_dof[count > 0] = val[count > 0] / count[count > 0]
-        chi2_dof[count <= 0] = np.nan
-
+    is_corr = np.array([p in labels for p in products])
+    for i, (chi2_cube, count_cube) in cubes.items():
+        field, spw, scan = keys[i]
         basename = foldername + f"/field{field}" + f"/spw{spw}" + f"/scan{scan}/"
-        makeplot(chi2_dof, basename + "combined.png", f"scan {scan}.png")
+        groups = [("combined.png", is_corr, f"scan {scan}")]
+        groups += [
+            (f"combined_{p}.png", np.array([q == p for q in products]), f"scan {scan} {p}")
+            for p in products
+            if p not in labels
+        ]
+        for name, sel, title in groups:
+            if not sel.any():
+                continue
+            val = chi2_cube[:, :, sel].sum(axis=(0, 1, 2))
+            count = count_cube[:, :, sel].sum(axis=(0, 1, 2))
+            chi2_dof = np.full_like(val, np.nan)
+            chi2_dof[count > 0] = val[count > 0] / count[count > 0]
+            makeplot(chi2_dof, basename + name, title)
+
+
+def _spectral_setup(msname: str) -> tuple[dict[int, np.ndarray], dict[int, list[int]]]:
+    """Channel frequencies and correlation types per DATA_DESC_ID."""
+    ddt = pyrap.tables.table(f"{msname}::DATA_DESCRIPTION", ack=False)
+    spwt = pyrap.tables.table(f"{msname}::SPECTRAL_WINDOW", ack=False)
+    polt = pyrap.tables.table(f"{msname}::POLARIZATION", ack=False)
+    try:
+        freqs, corrs = {}, {}
+        for ddid in range(ddt.nrows()):
+            freqs[ddid] = np.asarray(spwt.getcell("CHAN_FREQ", int(ddt.getcell("SPECTRAL_WINDOW_ID", ddid))))
+            corrs[ddid] = [int(c) for c in polt.getcell("CORR_TYPE", int(ddt.getcell("POLARIZATION_ID", ddid)))]
+    finally:
+        for t in (ddt, spwt, polt):
+            t.close()
+    return freqs, corrs
 
 
 def _write_zarr_dataset(
@@ -257,19 +315,18 @@ def _write_zarr_dataset(
     tbin_counts,
     fbin_idx,
     fbin_counts,
-    pol_idx,
+    products,
     antenna_names,
     msname,
-    rcol,
-    wcol,
-    fcol,
+    columns,
 ):
     """Write the per-chunk chi-squared cubes to a zarr store.
 
     One group per (field, spw, scan), because the number of time and frequency
     bins differs between them. Bin bounds ride along as coordinates so a reader
     can locate a chunk inside the scan's waterfall without re-deriving the
-    chunking.
+    chunking. ``columns`` records how the quantity was formed, so a reader can
+    reproduce it.
     """
     import xarray as xr
 
@@ -277,21 +334,19 @@ def _write_zarr_dataset(
     nant = len(antenna_names)
     attrs = {
         "ms": str(msname),
-        "rcol": rcol,
-        "wcol": wcol,
-        "fcol": fcol,
+        **columns,
         "antenna_names": list(antenna_names),
     }
 
     for i, (chi2_cube, count_cube) in cubes.items():
-        _, field, spw, scan = keys[i]
-        ntime, nfreq, ncorr = chi2_cube.shape[:3]
+        field, spw, scan = keys[i]
+        ntime, nfreq, nprod = chi2_cube.shape[:3]
         t0 = np.asarray(tbin_idx[i][:ntime], dtype=int)
         tf = t0 + np.asarray(tbin_counts[i][:ntime], dtype=int)
         chan0 = np.asarray(fbin_idx[i][:nfreq], dtype=int)
         chanf = chan0 + np.asarray(fbin_counts[i][:nfreq], dtype=int)
 
-        dims = ("time_bin", "freq_bin", "corr", "antenna1", "antenna2")
+        dims = ("time_bin", "freq_bin", "product", "antenna1", "antenna2")
         ds = xr.Dataset(
             data_vars={
                 "chi2": (dims, chi2_cube),
@@ -304,7 +359,7 @@ def _write_zarr_dataset(
             coords={
                 "time_bin": np.arange(ntime),
                 "freq_bin": np.arange(nfreq),
-                "corr": np.asarray(pol_idx[:ncorr], dtype=int),
+                "product": np.asarray(products[:nprod], dtype=str),
                 "antenna1": np.arange(nant),
                 "antenna2": np.arange(nant),
             },

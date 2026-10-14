@@ -11,6 +11,7 @@ from astropy.visualization import hist  # noqa: E402
 from mpl_toolkits.axes_grid1 import make_axes_locatable  # noqa: E402
 
 from surfvis.utils.chisq import _surfchisq_slice  # noqa: E402
+from surfvis.utils.products import form  # noqa: E402
 
 
 def makeplot(data, name, subt):
@@ -42,19 +43,33 @@ def makeplot(data, name, subt):
     plt.close(fig)
 
 
-def surfchisq_plot(resid, weight, flag, ant1, ant2, field, spw, scan, figname, subt):
-    """Compute chi-squared for one chunk, write its figure, and return the accumulators.
+def surfchisq_products_plot(
+    products, labels, resid, weight, flag, ant1, ant2, time, model, gains, grid_times, fignames, subtitles
+):
+    """Chi-squared for one (time, freq) chunk, per product; write a figure for each.
 
     Runs inside a worker process, so the dask arrays are computed with the
-    synchronous scheduler before being handed to the numba kernel.
+    synchronous scheduler before anything else touches them. Correction, model
+    subtraction and Stokes formation happen here, on the chunk, so nothing
+    corrected is ever written back to the MS.
+
+    Returns:
+        ``(chi2, counts)``, each ``(nproducts, nant, nant)``.
     """
-    resid, weight, flag, ant1, ant2 = dask.compute(resid, weight, flag, ant1, ant2, scheduler="sync")
-    chi2, counts = _surfchisq_slice(resid, weight, flag, ant1, ant2)
+    resid, weight, flag, ant1, ant2, time, model = dask.compute(
+        resid, weight, flag, ant1, ant2, time, model, scheduler="sync"
+    )
+    tidx = gains.time_index(time, grid_times) if gains is not None else None
+    vis, wgt, flg = form(products, labels, resid, weight, flag, ant1, ant2, tidx=tidx, gains=gains, model=model)
+
     nant = np.maximum(ant1.max(), ant2.max()) + 1
-    chi2_dof = np.zeros((nant, nant), dtype=float)
-    chi2_dof[counts > 0] = chi2[counts > 0] / counts[counts > 0]
-    chi2_dof[counts <= 0] = np.nan
+    chi2 = np.zeros((len(products), nant, nant))
+    counts = np.zeros((len(products), nant, nant))
+    for k in range(len(products)):
+        sl = slice(k, k + 1)
+        chi2[k], counts[k] = _surfchisq_slice(vis[..., sl], wgt[..., sl], flg[..., sl], ant1, ant2)
+        chi2_dof = np.full((nant, nant), np.nan)
+        chi2_dof[counts[k] > 0] = chi2[k][counts[k] > 0] / counts[k][counts[k] > 0]
+        makeplot(chi2_dof, fignames[k], subtitles[k])
 
-    makeplot(chi2_dof, figname, subt)
-
-    return field, spw, scan, chi2, counts
+    return chi2, counts

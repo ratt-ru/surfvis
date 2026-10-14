@@ -20,12 +20,19 @@ from functools import lru_cache
 import numpy as np
 import xarray
 
+from surfvis.utils import gains as gains_mod
+from surfvis.utils import products
+
 QUANTITIES = ("amp", "phase", "real", "imag")
 
 # Matches pfb-imaging's default. SCAN_NUMBER in the schema means one partition
 # per (field, spw, scan) -- exactly how surfchi2 groups, so a partition's time
 # axis is the scan and no filtering is needed.
 PARTITION_SCHEMA = ("FIELD_ID", "DATA_DESC_ID", "SCAN_NUMBER")
+
+# xarray-ms decodes TIME (MJD seconds) to unix seconds; gain tables and flag
+# versions are keyed on the raw MJD values.
+MJD_UNIX_OFFSET = 3506716800.0
 
 # Last-seen on-disk signature per MS, so a rewrite invalidates the caches.
 _FINGERPRINTS: dict[str, tuple] = {}
@@ -42,15 +49,16 @@ class DataGroup:
     def resolve(self, column: str) -> str:
         """Translate an MSv2 column name to the MSv4 variable that holds it.
 
-        Non-standard columns (``RESIDUAL``, ``MODEL``, ...) pass through: they
-        are not renamed by the MSv4 view, they simply appear as secondary
-        variables.
+        Only the columns the data group actually maps are translated. Everything
+        else passes through: non-standard columns (``RESIDUAL``) and the
+        standard ones xarray-ms keeps as secondary variables
+        (``CORRECTED_DATA``, ``MODEL_DATA``) appear under their own names.
+        Mapping ``CORRECTED_DATA`` to the group's ``VISIBILITY`` would silently
+        plot ``DATA`` instead.
         """
         return {
             "DATA": self.correlated_data,
-            "CORRECTED_DATA": self.correlated_data,
             "WEIGHT_SPECTRUM": self.weight,
-            "SIGMA_SPECTRUM": self.weight,
             "FLAG": self.flag,
         }.get(column, column)
 
@@ -66,7 +74,7 @@ class Waterfall:
     scan: int
     column: str
     quantity: str
-    polarization: int
+    product: str
     # Chunk rectangle in (time slot, channel) coordinates; None if not given.
     rect: tuple[int, int, int, int] | None
 
@@ -178,13 +186,21 @@ def _open(ms: str, field: int, spw: int, scan: int) -> xarray.Dataset:
     return _open_partition(ms, field, spw, scan, fingerprint)
 
 
-def available_columns(ms: str, field: int, spw: int, scan: int) -> list[str]:
-    """Data variables with a (time, baseline, freq, pol) shape, i.e. plottable."""
+def available_columns(ms: str, field: int, spw: int, scan: int, complex_only: bool = False) -> list[str]:
+    """Data variables with a (time, baseline, freq, pol) shape, i.e. plottable.
+
+    ``complex_only`` restricts to visibility-like columns -- what makes sense
+    as a model to subtract, which ``WEIGHT`` does not.
+    """
     ds = _open(ms, field, spw, scan)
     flag = data_group(ms).flag
     wanted = ("time", "baseline_id", "frequency", "polarization")
     # The flag variable has the right shape but is the overlay, not a quantity.
-    return sorted(name for name, var in ds.data_vars.items() if var.dims == wanted and name != flag)
+    return sorted(
+        name
+        for name, var in ds.data_vars.items()
+        if var.dims == wanted and name != flag and (not complex_only or np.iscomplexobj(var))
+    )
 
 
 def baseline_index(ds: xarray.Dataset, name1: str, name2: str) -> int:
@@ -199,6 +215,156 @@ def baseline_index(ds: xarray.Dataset, name1: str, name2: str) -> int:
     return int(hit[0])
 
 
+def labels(ms: str, field: int, spw: int, scan: int) -> list[str]:
+    """Correlation labels of a partition, such as ``["XX", "XY", "YX", "YY"]``."""
+    return [str(p) for p in _open(ms, field, spw, scan).polarization.values]
+
+
+def available_products(ms: str, field: int, spw: int, scan: int) -> list[str]:
+    """Correlations plus whichever Stokes parameters they can form."""
+    return products.available(labels(ms, field, spw, scan))
+
+
+def flag_versions(ms: str) -> list[str]:
+    """Names of the CASA flag versions saved next to ``ms``, oldest first.
+
+    CASA keeps them in ``<ms>.flagversions/``: a ``FLAG_VERSION_LIST`` of
+    ``name : comment`` lines and one ``flags.<name>`` table per version,
+    row-aligned with the main table.
+    """
+    root = f"{ms.rstrip('/')}.flagversions"
+    try:
+        with open(os.path.join(root, "FLAG_VERSION_LIST")) as listing:
+            names = [line.split(" : ", 1)[0].strip() for line in listing if line.strip()]
+    except OSError:
+        return []
+    return [n for n in names if os.path.isdir(os.path.join(root, f"flags.{n}"))]
+
+
+def ms_times(ds: xarray.Dataset) -> np.ndarray:
+    """The partition's time grid as raw MS TIME values (MJD seconds)."""
+    times = np.asarray(ds.time.values, dtype=float)
+    if ds.time.attrs.get("format") == "unix":
+        times = times + MJD_UNIX_OFFSET
+    return times
+
+
+def _version_flags(
+    ms: str,
+    version: str,
+    field: int,
+    spw: int,
+    scan: int,
+    name1: str,
+    name2: str,
+    grid: np.ndarray,
+    corr_idx: list[int],
+) -> np.ndarray:
+    """One baseline's flags from a saved flag version, on the partition's time grid.
+
+    The version tables are row-aligned with the main table, so the baseline's
+    rows are found in the main table and the same row numbers read from the
+    version. Rows the grid has but the MS does not are flagged, as they are
+    for the live FLAG column.
+    """
+    from casacore.tables import table
+
+    if version not in flag_versions(ms):
+        raise KeyError(f"No flag version {version!r} for {ms}. Have: {flag_versions(ms)}")
+
+    ant = table(f"{ms}::ANTENNA", ack=False)
+    try:
+        ids = {str(n): k for k, n in enumerate(ant.getcol("NAME"))}
+    finally:
+        ant.close()
+    a, b = ids[name1], ids[name2]
+
+    main = table(ms, ack=False)
+    try:
+        sel = main.query(
+            f"FIELD_ID=={field} && DATA_DESC_ID=={spw} && SCAN_NUMBER=={scan} && "
+            f"((ANTENNA1=={a} && ANTENNA2=={b}) || (ANTENNA1=={b} && ANTENNA2=={a}))"
+        )
+        rows = sel.rownumbers()
+        times = sel.getcol("TIME") if len(rows) else np.zeros(0)
+        sel.close()
+    finally:
+        main.close()
+
+    nchan = None
+    out = None
+    vt = table(f"{ms.rstrip('/')}.flagversions/flags.{version}", ack=False)
+    try:
+        if len(rows):
+            vsel = vt.selectrows(rows)
+            flags = vsel.getcol("FLAG")[..., corr_idx]
+            flags |= vsel.getcol("FLAG_ROW")[:, None, None]
+            vsel.close()
+            nchan = flags.shape[1]
+    finally:
+        vt.close()
+
+    if nchan is None:
+        raise KeyError(f"No rows for {name1}-{name2} in scan {scan}")
+    out = np.ones((grid.size, nchan, len(corr_idx)), dtype=bool)
+    idx = np.clip(np.searchsorted(grid, times), 0, grid.size - 1)
+    hit = np.abs(grid[idx] - times) < gains_mod.TIME_TOLERANCE
+    out[idx[hit]] = flags[hit]
+    return out
+
+
+def check(
+    ms: str,
+    field: int,
+    spw: int,
+    scan: int,
+    product: str,
+    column: str,
+    model: str = "",
+    gtable: str = "",
+    flagversion: str = "",
+) -> list[str]:
+    """Everything that can be wrong with a waterfall request, short of reading it.
+
+    Returns:
+        Human-readable problems; empty when the waterfall can be drawn.
+    """
+    problems = []
+    try:
+        ds = _open(ms, field, spw, scan)
+        group = data_group(ms)
+    except Exception as exc:  # noqa: BLE001 - surfaced to the user verbatim
+        return [f"Cannot open {ms}: {exc}"]
+
+    for role, name in (("column", column), ("model", model)):
+        if name and group.resolve(name) not in ds.data_vars:
+            problems.append(f"{role} {name!r} is not in this Measurement Set")
+
+    labels_ = [str(p) for p in ds.polarization.values]
+    full = False
+    if gtable:
+        try:
+            full = _gains(ms, gtable, field, spw, scan, ds)[0].full
+        except Exception as exc:  # noqa: BLE001
+            problems.append(f"gain table: {exc}")
+    try:
+        products.needed([product], labels_, full_jones=full)
+    except ValueError as exc:
+        problems.append(str(exc))
+    if flagversion and flagversion not in flag_versions(ms):
+        problems.append(f"no flag version {flagversion!r}")
+    return problems
+
+
+def _gains(
+    ms: str, gtable: str, field: int, spw: int, scan: int, ds: xarray.Dataset
+) -> tuple[products.Gains, list[str]]:
+    """Gains for every antenna in the partition, on its time and channel grid, and those antennas' names."""
+    names = sorted(set(map(str, ds.baseline_antenna1_name.values)) | set(map(str, ds.baseline_antenna2_name.values)))
+    gains = gains_mod.load(gtable, field, spw, scan, ms_times(ds), ds.frequency.values, names)
+    return gains, names
+
+
 def waterfall(
     ms: str,
     field: int,
@@ -206,12 +372,19 @@ def waterfall(
     scan: int,
     name1: str,
     name2: str,
-    polarization: int,
+    product: str,
     column: str,
     quantity: str = "amp",
     rect: tuple[int, int, int, int] | None = None,
+    model: str = "",
+    gtable: str = "",
+    flagversion: str = "",
 ) -> Waterfall:
     """Read one baseline's waterfall for a whole scan.
+
+    The plotted quantity is ``inv(G_p) column inv(G_q)^H - model``, formed into
+    ``product`` -- the same thing ``surfvis chi2 --mcol --gtable --stokes``
+    computes, via the same code.
 
     Args:
         ms: Path to the Measurement Set.
@@ -220,20 +393,23 @@ def waterfall(
         scan: SCAN_NUMBER.
         name1: Name of the first antenna.
         name2: Name of the second antenna.
-        polarization: Index into the polarization axis.
+        product: A correlation (``XX``) or Stokes parameter (``V``).
         column: Column to plot. MSv2 names are translated through the data
             group, so ``DATA`` finds ``VISIBILITY``; non-standard names such as
             ``RESIDUAL`` are used as given.
         quantity: One of ``amp``, ``phase``, ``real``, ``imag``.
         rect: Chunk bounds ``(t0, tf, chan0, chanf)`` to outline, in slots
             relative to the start of the scan.
+        model: Optional model column, subtracted after correction.
+        gtable: Optional QuartiCal gain term to correct by.
+        flagversion: Optional CASA flag version to overlay instead of FLAG.
 
     Returns:
         A :class:`Waterfall`.
 
     Raises:
-        KeyError: if the column or baseline is not present.
-        ValueError: if the quantity is not recognised.
+        KeyError: if a column, baseline or flag version is not present.
+        ValueError: if the quantity, product or gains are not usable.
     """
     if quantity not in QUANTITIES:
         raise ValueError(f"quantity must be one of {QUANTITIES}, got {quantity!r}")
@@ -241,14 +417,54 @@ def waterfall(
     ds = _open(ms, field, spw, scan)
     group = data_group(ms)
     resolved = group.resolve(column)
-    if resolved not in ds.data_vars:
-        raise KeyError(
-            f"Column {column!r} (MSv4 {resolved!r}) not in this Measurement Set. Have: {sorted(ds.data_vars)}"
-        )
+    for name in (resolved, group.resolve(model) if model else None):
+        if name is not None and name not in ds.data_vars:
+            raise KeyError(f"Column {name!r} not in this Measurement Set. Have: {sorted(ds.data_vars)}")
+
+    labels_ = [str(p) for p in ds.polarization.values]
+    gains = None
+    ant1 = ant2 = None
+    if gtable:
+        gains, names = _gains(ms, gtable, field, spw, scan, ds)
+        ntime = ds.sizes["time"]
+        ant1 = np.full(ntime, names.index(name1))
+        ant2 = np.full(ntime, names.index(name2))
+    read = products.needed([product], labels_, full_jones=gains is not None and gains.full)
+    corr_idx = [labels_.index(c) for c in read]
 
     k = baseline_index(ds, name1, name2)
-    plane = ds[resolved].isel(baseline_id=k, polarization=polarization).values
-    flags = ds[group.flag].isel(baseline_id=k, polarization=polarization).values.astype(bool)
+    sel = {"baseline_id": k, "polarization": corr_idx}
+    vis = ds[resolved].isel(sel).values
+    mvis = ds[group.resolve(model)].isel(sel).values if model else None
+    if flagversion:
+        flags = _version_flags(ms, flagversion, field, spw, scan, name1, name2, ms_times(ds), corr_idx)
+    else:
+        flags = ds[group.flag].isel(sel).values.astype(bool)
+    # xarray-ms lays a regular (time, baseline) grid over the MS and fills gaps
+    # with NaN. Those slots hold no data, so treat them as flagged rather than
+    # letting them punch holes in the colour scale.
+    flags |= ~np.isfinite(vis)
+    vis = np.where(np.isfinite(vis), vis, 0)
+    if mvis is not None:
+        mvis = np.where(np.isfinite(mvis), mvis, 0)
+
+    tidx = None
+    if gains is not None:
+        grid = ms_times(ds)
+        tidx = gains.time_index(grid, grid)
+    plane, _, pflags = products.form(
+        [product],
+        read,
+        vis,
+        np.ones(vis.shape),
+        flags,
+        ant1,
+        ant2,
+        tidx=tidx,
+        gains=gains,
+        model=mvis,
+    )
+    plane, pflags = plane[..., 0], pflags[..., 0]
 
     if quantity == "phase":
         values = np.angle(plane)
@@ -260,19 +476,20 @@ def waterfall(
         values = np.abs(plane)
     values = np.asarray(values, dtype=float)
 
-    # xarray-ms lays a regular (time, baseline) grid over the MS and fills gaps
-    # with NaN. Those slots hold no data, so treat them as flagged rather than
-    # letting them punch holes in the colour scale.
-    flags |= ~np.isfinite(values)
-
     return Waterfall(
         values=values,
-        flags=flags,
+        flags=pflags,
         antenna1=name1,
         antenna2=name2,
         scan=scan,
-        column=resolved,
+        column=_describe(resolved, group.resolve(model) if model else "", gtable),
         quantity=quantity,
-        polarization=polarization,
+        product=product,
         rect=rect,
     )
+
+
+def _describe(column: str, model: str, gtable: str) -> str:
+    """How the plotted quantity was formed, for the plot title."""
+    text = f"corrected {column}" if gtable else column
+    return f"{text} - {model}" if model else text

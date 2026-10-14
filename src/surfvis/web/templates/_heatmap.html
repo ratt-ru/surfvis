@@ -1,6 +1,10 @@
 <div class="panel">
   <div class="panel-head">
-    <h2>&chi;<sup>2</sup>/dof &mdash; antenna &times; antenna</h2>
+    <h2>&chi;<sup>2</sup>/dof &mdash; antenna &times; antenna &middot; {{ product }}</h2>
+    <p class="meta">
+      {% if chunk.gtable %}corrected {% endif %}{{ chunk.rcol }}{% if chunk.mcol %} &minus; {{ chunk.mcol }}{% endif %}
+      {% if chunk.gtable %}&middot; gains <code>{{ chunk.gtable }}</code>{% endif %}
+    </p>
     <p class="meta">
       time slots {{ chunk.t0 }}&ndash;{{ chunk.tf }} &middot;
       channels {{ chunk.chan0 }}&ndash;{{ chunk.chanf }} &middot;

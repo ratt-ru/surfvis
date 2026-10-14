@@ -19,6 +19,7 @@ cabs:
       rcol:
         info:
           Residual column.
+          With --mcol, the data column the model is subtracted from.
         default: RESIDUAL
         metadata:
           rich_help_panel: Inputs
@@ -33,6 +34,20 @@ cabs:
         info:
           Flag column.
         default: FLAG
+        metadata:
+          rich_help_panel: Inputs
+      mcol:
+        info:
+          Model column, subtracted after gains are applied.
+          Use with --rcol DATA to form the residual on the fly.
+        dtype: Optional[str]
+        metadata:
+          rich_help_panel: Inputs
+      gtable:
+        info:
+          QuartiCal gain term to correct by, such as gains.qc/NET.
+          Gains must be on the data's time and frequency grid, or constant along an axis.
+        dtype: Optional[Directory]
         metadata:
           rich_help_panel: Inputs
       nthreads:
@@ -62,6 +77,13 @@ cabs:
           Comma separated list of correlations to use.
           Defaults to the diagonal correlations.
         dtype: Optional[List[int]]
+        metadata:
+          rich_help_panel: Inputs
+      stokes:
+        info:
+          Comma separated Stokes parameters to compute as well, such as I,V.
+          Each needs the correlations it is formed from.
+        dtype: Optional[List[str]]
         metadata:
           rich_help_panel: Inputs
     outputs:

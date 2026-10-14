@@ -18,7 +18,7 @@ class Selection:
     scan: int
     time_bin: int
     freq_bin: int
-    corr: int
+    product: str
 
 
 class Chi2Store:
@@ -54,9 +54,12 @@ class Chi2Store:
     def chunk(self, sel: Selection) -> "Chunk":
         """Return the antenna-by-antenna chi-squared/dof matrix for one chunk."""
         ds = self.group(sel.field, sel.spw, sel.scan)
-        corr_index = int(np.where(ds.corr.values == sel.corr)[0][0])
-        chi2 = ds.chi2.values[sel.time_bin, sel.freq_bin, corr_index]
-        counts = ds.counts.values[sel.time_bin, sel.freq_bin, corr_index]
+        hit = np.where(ds["product"].values.astype(str) == sel.product)[0]
+        if hit.size == 0:
+            raise KeyError(f"No product {sel.product!r}; have {list(ds['product'].values)}")
+        k = int(hit[0])
+        chi2 = ds.chi2.values[sel.time_bin, sel.freq_bin, k]
+        counts = ds.counts.values[sel.time_bin, sel.freq_bin, k]
 
         with np.errstate(invalid="ignore", divide="ignore"):
             chi2_dof = np.where(counts > 0, chi2 / np.where(counts > 0, counts, 1), np.nan)
@@ -71,15 +74,19 @@ class Chi2Store:
             chanf=int(ds.chanf.values[sel.freq_bin]),
             ms=str(ds.attrs["ms"]),
             rcol=str(ds.attrs["rcol"]),
+            mcol=str(ds.attrs.get("mcol", "")),
+            gtable=str(ds.attrs.get("gtable", "")),
         )
 
-    def bins(self, field: int, spw: int, scan: int) -> tuple[list[int], list[int], list[int]]:
-        """Available (time bins, freq bins, polarization indices) for a scan."""
+    def bins(self, field: int, spw: int, scan: int) -> tuple[list[int], list[int], list[str]]:
+        """Available (time bins, freq bins, products) for a scan."""
         ds = self.group(field, spw, scan)
+        if "product" not in ds.coords:
+            raise ValueError(f"{self.path} predates products (has no 'product' axis); rerun surfvis chi2")
         return (
             [int(v) for v in ds.time_bin.values],
             [int(v) for v in ds.freq_bin.values],
-            [int(v) for v in ds.corr.values],
+            [str(v) for v in ds["product"].values],
         )
 
 
@@ -96,6 +103,9 @@ class Chunk:
     chanf: int
     ms: str
     rcol: str
+    # How chi2 formed the quantity; empty when not used.
+    mcol: str = ""
+    gtable: str = ""
 
     @property
     def finite(self) -> np.ndarray:

@@ -160,7 +160,7 @@ def waterfall_png(wf, cmap: str = "viridis", show_flags: bool = True) -> bytes:
     ax.set_xlabel("Channel")
     ax.set_ylabel("Time slot (within scan)")
     ax.set_title(
-        f"{wf.antenna1}-{wf.antenna2}   scan {wf.scan}   {wf.column}   {wf.quantity}   pol {wf.polarization}",
+        f"{wf.antenna1}-{wf.antenna2}   scan {wf.scan}   {wf.column}   {wf.quantity}   {wf.product}",
         fontsize=10,
     )
     fig.colorbar(im, ax=ax, pad=0.01)

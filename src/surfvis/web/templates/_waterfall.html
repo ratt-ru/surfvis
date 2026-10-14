@@ -10,27 +10,66 @@
 
   <form class="controls sub"
         hx-get="/waterfall" hx-target="#waterfall" hx-trigger="change">
-    {% for key, value in request.query_params.items() %}
-      {% if key not in ("column", "quantity") %}
-      <input type="hidden" name="{{ key }}" value="{{ value }}">
-      {% endif %}
+    {% for key, value in base.items() %}
+    <input type="hidden" name="{{ key }}" value="{{ value }}">
     {% endfor %}
+    <label>product
+      <select name="product">
+        {% for name in products %}
+        <option value="{{ name }}" {% if name == s.product %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+      </select>
+    </label>
     <label>column
       <select name="column">
         {% for name in columns %}
-        <option value="{{ name }}" {% if name == column %}selected{% endif %}>{{ name }}</option>
+        <option value="{{ name }}" {% if name == s.column %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+        {% if s.column not in columns %}<option value="{{ s.column }}" selected>{{ s.column }}</option>{% endif %}
+      </select>
+    </label>
+    <label>model
+      <select name="model">
+        <option value="" {% if not s.model %}selected{% endif %}>none</option>
+        {% for name in models %}
+        <option value="{{ name }}" {% if name == s.model %}selected{% endif %}>{{ name }}</option>
+        {% endfor %}
+        {% if s.model and s.model not in models %}<option value="{{ s.model }}" selected>{{ s.model }}</option>{% endif %}
+      </select>
+    </label>
+    <label class="wide">gain table
+      <input type="text" name="gtable" value="{{ s.gtable }}" placeholder="none &mdash; e.g. gains.qc/NET" spellcheck="false">
+    </label>
+    <label>flags
+      <select name="flagversion">
+        <option value="" {% if not s.flagversion %}selected{% endif %}>FLAG (current)</option>
+        {% for name in flagversions %}
+        <option value="{{ name }}" {% if name == s.flagversion %}selected{% endif %}>{{ name }}</option>
         {% endfor %}
       </select>
     </label>
     <label>quantity
       <select name="quantity">
         {% for name in quantities %}
-        <option value="{{ name }}" {% if name == quantity %}selected{% endif %}>{{ name }}</option>
+        <option value="{{ name }}" {% if name == s.quantity %}selected{% endif %}>{{ name }}</option>
         {% endfor %}
       </select>
     </label>
   </form>
 
+  {% if differs %}
+  <p class="note">
+    The waterfall no longer shows what the heatmap measured
+    ({{ chunk.selection.product }}, {% if chunk.gtable %}corrected {% endif %}{{ chunk.rcol }}{% if chunk.mcol %} &minus; {{ chunk.mcol }}{% endif %}, current flags).
+  </p>
+  {% endif %}
+
+  {% if problems %}
+  <ul class="problems">
+    {% for problem in problems %}<li>{{ problem }}</li>{% endfor %}
+  </ul>
+  {% else %}
   <img class="waterfall" src="/waterfall.png?{{ query }}"
        alt="Waterfall for baseline {{ name1 }} to {{ name2 }}">
+  {% endif %}
 </div>

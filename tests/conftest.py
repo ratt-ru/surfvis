@@ -47,3 +47,32 @@ def chi2_zarr(tiny_ms, tmp_path_factory):
         ntimes=6,
     )
     return {"zarr": out / "chi2.zarr", "ms": tiny_ms}
+
+
+@pytest.fixture(scope="session")
+def gain_table(tiny_ms, tmp_path_factory):
+    """The fixture MS's gains, written as a QuartiCal gain term."""
+    from tests.fixtures.ms import write_gain_table
+
+    return write_gain_table(tiny_ms, str(tmp_path_factory.mktemp("gains") / "gains.qc"))
+
+
+@pytest.fixture(scope="session")
+def chi2_corrected(tiny_ms, gain_table, tmp_path_factory):
+    """chi2 formed on the fly from DATA, MODEL_DATA and the gains, with Stokes I and V."""
+    from surfvis.core.chi2 import chi2
+
+    out = tmp_path_factory.mktemp("chi2c")
+    chi2(
+        tiny_ms["path"],
+        rcol="DATA",
+        mcol="MODEL_DATA",
+        gtable=gain_table,
+        dataout=out / "chi2.zarr",
+        imagesout=out / "imgs",
+        nthreads=2,
+        nfreqs=16,
+        ntimes=6,
+        stokes=["I", "v"],
+    )
+    return {"zarr": out / "chi2.zarr", "imgs": out / "imgs", "ms": tiny_ms, "gtable": gain_table}

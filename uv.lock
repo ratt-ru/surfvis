@@ -2665,6 +2665,7 @@ dependencies = [
 
 [package.optional-dependencies]
 full = [
+    { name = "arcae", marker = "python_full_version >= '3.11'" },
     { name = "astropy", version = "6.1.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "astropy", version = "8.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "dask" },
@@ -2704,6 +2705,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "arcae", marker = "python_full_version >= '3.11' and extra == 'full'", specifier = ">=0.5.5" },
     { name = "astropy", marker = "extra == 'full'", specifier = ">=5.0" },
     { name = "dask", marker = "extra == 'full'", specifier = ">=2023.1" },
     { name = "dask-ms", extras = ["xarray", "zarr"], marker = "extra == 'full'", specifier = ">=0.2.20" },

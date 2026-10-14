@@ -265,44 +265,43 @@ def _version_flags(
     The version tables are row-aligned with the main table, so the baseline's
     rows are found in the main table and the same row numbers read from the
     version. Rows the grid has but the MS does not are flagged, as they are
-    for the live FLAG column.
+    for the live FLAG column. Read with arcae, the same library xarray-ms uses,
+    so the web layer needs no python-casacore.
     """
-    from casacore.tables import table
+    import arcae
+    from arcae.lib.arrow_tables import Table
 
     if version not in flag_versions(ms):
         raise KeyError(f"No flag version {version!r} for {ms}. Have: {flag_versions(ms)}")
 
-    ant = table(f"{ms}::ANTENNA", ack=False)
+    ant = arcae.table(f"{ms}::ANTENNA")
     try:
         ids = {str(n): k for k, n in enumerate(ant.getcol("NAME"))}
     finally:
         ant.close()
     a, b = ids[name1], ids[name2]
 
-    main = table(ms, ack=False)
+    sel = Table.from_taql(
+        f"SELECT ROWID() AS ROW, TIME FROM '{ms}' WHERE FIELD_ID=={field} && DATA_DESC_ID=={spw} && "
+        f"SCAN_NUMBER=={scan} && ((ANTENNA1=={a} && ANTENNA2=={b}) || (ANTENNA1=={b} && ANTENNA2=={a}))"
+    )
     try:
-        sel = main.query(
-            f"FIELD_ID=={field} && DATA_DESC_ID=={spw} && SCAN_NUMBER=={scan} && "
-            f"((ANTENNA1=={a} && ANTENNA2=={b}) || (ANTENNA1=={b} && ANTENNA2=={a}))"
-        )
-        rows = sel.rownumbers()
-        times = sel.getcol("TIME") if len(rows) else np.zeros(0)
-        sel.close()
+        # A writable copy: arcae rejects read-only buffers as row indices.
+        rows = np.array(sel.getcol("ROW"), dtype=np.int64) if sel.nrow() else np.zeros(0, np.int64)
+        times = sel.getcol("TIME") if sel.nrow() else np.zeros(0)
     finally:
-        main.close()
+        sel.close()
 
     nchan = None
-    out = None
-    vt = table(f"{ms.rstrip('/')}.flagversions/flags.{version}", ack=False)
-    try:
-        if len(rows):
-            vsel = vt.selectrows(rows)
-            flags = vsel.getcol("FLAG")[..., corr_idx]
-            flags |= vsel.getcol("FLAG_ROW")[:, None, None]
-            vsel.close()
+    if rows.size:
+        vt = arcae.table(f"{ms.rstrip('/')}.flagversions/flags.{version}")
+        try:
+            # arcae returns boolean columns as uint8.
+            flags = np.array(vt.getcol("FLAG", index=(rows,))[..., corr_idx], dtype=bool)
+            flags |= np.asarray(vt.getcol("FLAG_ROW", index=(rows,)), dtype=bool)[:, None, None]
             nchan = flags.shape[1]
-    finally:
-        vt.close()
+        finally:
+            vt.close()
 
     if nchan is None:
         raise KeyError(f"No rows for {name1}-{name2} in scan {scan}")

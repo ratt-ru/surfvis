@@ -40,6 +40,9 @@ dependencies = [
 #     natively. Add new deps to the "full" extra below as you grow core/.
 [project.optional-dependencies]
 full = [
+    # Python >= 3.11 only. On 3.10, importing core.chi2 fails and the CLI falls
+    # back to running chi2 in the container, as for any missing heavy dep.
+    "arcae>=0.5.5; python_version >= '3.11'",
     "astropy>=5.0",
     "dask>=2023.1",
     "dask-ms[xarray, zarr]>=0.2.20",

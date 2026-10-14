@@ -6,9 +6,9 @@ import os
 import shutil
 from pathlib import Path
 
+import arcae
 import dask
 import numpy as np
-import pyrap.tables
 from daskms import xds_from_storage_ms as xds_from_ms
 from daskms import xds_from_storage_table as xds_from_table
 
@@ -292,15 +292,22 @@ def chi2(
 
 
 def _spectral_setup(msname: str) -> tuple[dict[int, np.ndarray], dict[int, list[int]]]:
-    """Channel frequencies and correlation types per DATA_DESC_ID."""
-    ddt = pyrap.tables.table(f"{msname}::DATA_DESCRIPTION", ack=False)
-    spwt = pyrap.tables.table(f"{msname}::SPECTRAL_WINDOW", ack=False)
-    polt = pyrap.tables.table(f"{msname}::POLARIZATION", ack=False)
+    """Channel frequencies and correlation types per DATA_DESC_ID.
+
+    Read with arcae rather than python-casacore: surfvis is moving to
+    arcae + xarray-ms, and dask-ms 0.3 drops python-casacore too.
+    """
+    ddt = arcae.table(f"{msname}::DATA_DESCRIPTION")
+    spwt = arcae.table(f"{msname}::SPECTRAL_WINDOW")
+    polt = arcae.table(f"{msname}::POLARIZATION")
     try:
+        spw_ids = ddt.getcol("SPECTRAL_WINDOW_ID")
+        pol_ids = ddt.getcol("POLARIZATION_ID")
         freqs, corrs = {}, {}
-        for ddid in range(ddt.nrows()):
-            freqs[ddid] = np.asarray(spwt.getcell("CHAN_FREQ", int(ddt.getcell("SPECTRAL_WINDOW_ID", ddid))))
-            corrs[ddid] = [int(c) for c in polt.getcell("CORR_TYPE", int(ddt.getcell("POLARIZATION_ID", ddid)))]
+        for ddid, (spw, pol) in enumerate(zip(spw_ids, pol_ids)):
+            # One row at a time: CHAN_FREQ and CORR_TYPE vary in shape between rows.
+            freqs[ddid] = np.asarray(spwt.getcol("CHAN_FREQ", index=(np.array([spw]),))[0])
+            corrs[ddid] = [int(c) for c in polt.getcol("CORR_TYPE", index=(np.array([pol]),))[0]]
     finally:
         for t in (ddt, spwt, polt):
             t.close()

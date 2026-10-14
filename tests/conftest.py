@@ -14,11 +14,11 @@ def _have(*modules: str) -> bool:
 
 
 needs_ms = pytest.mark.skipif(
-    not _have("casacore", "daskms", "numba"),
-    reason="needs the [full] extras (python-casacore, dask-ms, numba)",
+    not _have("arcae", "casacore", "daskms", "numba"),
+    reason="needs the [full] extras (arcae, python-casacore, dask-ms, numba) and Python >= 3.11",
 )
 needs_web = pytest.mark.skipif(
-    not _have("casacore", "daskms", "numba", "fastapi", "xarray_ms"),
+    not _have("arcae", "casacore", "daskms", "numba", "fastapi", "xarray_ms"),
     reason="needs the [full,web] extras",
 )
 

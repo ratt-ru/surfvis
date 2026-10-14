@@ -4,7 +4,7 @@ title: Chi-squared browser
 description: How surfvis serve links surfchi2 output to on-demand baseline waterfalls, the waterfall's correction / Stokes / flag-version controls, and the xarray-ms facts it depends on.
 tags: [web, fastapi, htmx, xarray-ms, zarr]
 timestamp: 2026-10-14
-last_verified_commit: 81f37f1
+last_verified_commit: 85c6bcd
 ---
 
 # Chi-squared browser
@@ -120,9 +120,11 @@ it reaches the menus, or the column would be listed twice.
   cached on the directory's mtime, so a re-solve is picked up.
 - **Flag version** lists CASA's `<ms>.flagversions/FLAG_VERSION_LIST`
   (`name : comment` lines) where `flags.<name>` exists. Version tables are
-  row-aligned with the main table, so the baseline's rows are found with a
-  python-casacore query on the main table and the same row numbers read from
-  the version; `FLAG_ROW` is ORed in and grid slots with no row are flagged.
+  row-aligned with the main table, so the baseline's rows are found with an
+  arcae TaQL query (`Table.from_taql`, `ROWID()`) on the main table and the
+  same row numbers read from the version; `FLAG_ROW` is ORed in and grid slots
+  with no row are flagged. arcae returns these boolean columns as `uint8`, and
+  wants a writable row-index array. The web layer needs no python-casacore.
   Only listed names are accepted, which also keeps the name from being a path.
 - **Problems are reported in the panel**, not as a broken image: the
   `/waterfall` route runs `msdata.check()` (columns exist, product formable,

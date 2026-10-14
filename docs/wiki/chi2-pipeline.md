@@ -4,7 +4,7 @@ title: Chi-squared pipeline
 description: How chi2 and flag-chi2 chunk a Measurement Set, what the numba kernels compute, how results are reduced, and where images land.
 tags: [chi2, flagging, dask, numba, daskms]
 timestamp: 2026-10-14
-last_verified_commit: 81f37f1
+last_verified_commit: 85c6bcd
 ---
 
 # Chi-squared pipeline
@@ -126,4 +126,6 @@ omitted both commands fall back to the diagonal correlations: `[0, -1]` for a
 multi-correlation MS, `[0]` otherwise. In `chi2` these resolve to labels
 (`XX`, `YY`) via `POLARIZATION::CORR_TYPE`, and `--stokes` appends Stokes
 products; `--use-corrs` does not restrict which Stokes can be formed. Every
-spectral window must have the same correlations.
+spectral window must have the same correlations. `CORR_TYPE` and `CHAN_FREQ`
+are read with arcae (`_spectral_setup`), not python-casacore, which makes
+`chi2` need Python 3.11+.

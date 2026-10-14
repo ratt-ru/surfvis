@@ -3,10 +3,16 @@ type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
 timestamp: 2026-10-14
-last_verified_commit: 81f37f1
+last_verified_commit: 85c6bcd
 ---
 
 # Wiki changelog
+
+## 2026-10-14 — arcae for new table reads (verified at `85c6bcd`)
+
+- **Updated** `web-app.md` and `chi2-pipeline.md`: flag versions and the
+  spectral setup are read with arcae, not python-casacore; arcae's `uint8`
+  booleans and its read-only-index refusal; `chi2` now needs Python 3.11+.
 
 ## 2026-10-14 — corrections, Stokes and flag versions (verified at `81f37f1`)
 

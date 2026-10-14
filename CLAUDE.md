@@ -33,7 +33,7 @@ uv run pytest tests/test_roundtrip.py::test_roundtrip_chi2 -v   # one test
 uv run hip-cargo generate-cabs --module 'src/surfvis/cli/*.py' --output-dir src/surfvis/cabs
 ```
 
-The heavy stack (python-casacore, dask-ms, numba, xarray-ms) is **not** in the dev
+The heavy stack (arcae, python-casacore, dask-ms, numba, xarray-ms) is **not** in the dev
 environment, so anything touching a Measurement Set skips locally. That is only
 true of a clean venv — the extras drift in easily, and then the MS tests start
 running locally and the suite stops resembling CI. `uv sync --group dev --group
@@ -182,8 +182,15 @@ the MSv4 view unless `FEED` (validated against ANTENNA1/2), `STATE`, and the
 batch task. `generate-cabs` skips undecorated functions, which is what keeps
 `serve.yml` from existing.
 
-**The `[web]` extra needs Python 3.11+** (xarray-ms). The batch commands still
-support 3.10, hence the environment marker in `pyproject.toml`.
+**The `[web]` extra and `chi2` need Python 3.11+** (xarray-ms, arcae). The
+other batch commands still support 3.10, hence the environment markers in
+`pyproject.toml`. On 3.10, `core.chi2` fails to import and the CLI falls back
+to the container, as it does for any missing heavy dependency.
+
+**New table reads go through arcae, not python-casacore.** surfvis is moving
+to arcae + xarray-ms (issue #11). Two arcae quirks: boolean columns come back
+as `uint8`, and `getcol(index=...)` rejects read-only row arrays -- copy
+indices that came out of another `getcol`.
 
 **A green test run proves less than it looks.** The heavy modules skip at
 *import*, so pytest reports one skip per module: a lightweight run says

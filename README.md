@@ -43,7 +43,7 @@ surfvis --help
 |---|---|
 | `surfvis summary` | Print the FIELD, SPECTRAL_WINDOW and ANTENNA tables of an MS. |
 | `surfvis surf` | One time/frequency PNG per baseline. |
-| `surfvis chi2` | Per-(time, freq, corr) chi-squared images plus a per-scan combination. |
+| `surfvis chi2` | Per-(time, freq, product) chi-squared images plus a per-scan combination. |
 | `surfvis flag-chi2` | Flag visibilities whose chi-squared exceeds a threshold. Modifies the MS in place. |
 | `surfvis serve` | Browse chi-squared output in a browser and plot baseline waterfalls on demand. |
 
@@ -62,6 +62,11 @@ surfvis surf --ms /data/my.ms --i 4 --j 17 --plot phase --noflags
 # Chi-squared images, 8 workers, 64 channels per chunk
 surfvis chi2 --ms /data/my.ms --rcol RESIDUAL --wcol WEIGHT_SPECTRUM \
     --nthreads 8 --nfreqs 64 --imagesout /scratch/chi2
+
+# The same, without a RESIDUAL column: corrected DATA minus MODEL_DATA,
+# with Stokes I and V alongside the diagonal correlations
+surfvis chi2 --ms /data/my.ms --rcol DATA --mcol MODEL_DATA \
+    --gtable /data/gains.qc/NET --stokes I,V --imagesout /scratch/chi2
 
 # Flag anything above chi2 = 5, leaving baselines to antennas 0 and 1 alone
 surfvis flag-chi2 --ms /data/my.ms --flag-above 5 --respect-ants 0,1
@@ -98,6 +103,11 @@ scan for 64 antennas at `--nfreqs 128`; a long observation is a few hundred MB.
 
 The Measurement Set path is recorded inside the dataset, so `serve` finds it on
 its own. Pass `--ms` only if the MS has moved since.
+
+The waterfall panel can switch product (correlation or Stokes), subtract a
+model column, apply a QuartiCal gain term (`gains.qc/NET`) and overlay a saved
+CASA flag version, all on the fly. Those controls change the waterfall only;
+the heatmap is what `chi2` computed, and the panel says when the two differ.
 
 ### 2. Start the server
 

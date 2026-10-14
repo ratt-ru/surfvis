@@ -2,8 +2,8 @@
 type: index
 title: surfvis LLM wiki
 description: Progressive-disclosure listing of the in-repo knowledge bundle.
-timestamp: 2026-09-18
-last_verified_commit: 57c55fc
+timestamp: 2026-10-14
+last_verified_commit: 81f37f1
 ---
 
 # surfvis LLM wiki
@@ -28,8 +28,8 @@ a page, update the page and refresh its stamp **in the same session**.
 | Page | Covers | Read when |
 |------|--------|-----------|
 | [cli-contract.md](cli-contract.md) | CLI ↔ cab ↔ core contract, round-trip constraints, hip-cargo quirks to route around | Touching anything under `src/surfvis/cli/` or `src/surfvis/cabs/` |
-| [web-app.md](web-app.md) | The chi-squared browser: zarr contract, xarray-ms behaviour, colour scaling, the spawn fix | Touching `src/surfvis/web/`, `cli/serve.py` or the zarr writer |
-| [chi2-pipeline.md](chi2-pipeline.md) | MS chunking, numba kernels, the parallel reduce, output layout, in-place flagging | Touching `core/chi2.py`, `core/flag_chi2.py` or `utils/` |
+| [web-app.md](web-app.md) | The chi-squared browser: zarr contract, waterfall controls (product, model, gains, flag versions), xarray-ms behaviour, colour scaling, the spawn fix | Touching `src/surfvis/web/`, `cli/serve.py` or the zarr writer |
+| [chi2-pipeline.md](chi2-pipeline.md) | The corrected-residual formula, Stokes weights, gain tables, MS chunking, numba kernels, the parallel reduce, output layout, in-place flagging | Touching `core/chi2.py`, `core/flag_chi2.py` or `utils/` |
 | [migration.md](migration.md) | What the pre-hip-cargo entry points mapped to, option-by-option | Answering "where did `surfchi2` go?" or porting an old command line |
 | [log.md](log.md) | Chronological wiki changelog | Checking what changed and when |
 

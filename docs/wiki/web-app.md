@@ -1,10 +1,10 @@
 ---
 type: reference
 title: Chi-squared browser
-description: How surfvis serve links surfchi2 output to on-demand baseline waterfalls, and the xarray-ms facts it depends on.
+description: How surfvis serve links surfchi2 output to on-demand baseline waterfalls, the waterfall's correction / Stokes / flag-version controls, and the xarray-ms facts it depends on.
 tags: [web, fastapi, htmx, xarray-ms, zarr]
-timestamp: 2026-09-18
-last_verified_commit: 57c55fc
+timestamp: 2026-10-14
+last_verified_commit: 81f37f1
 ---
 
 # Chi-squared browser
@@ -36,17 +36,19 @@ bins differs between them:
 
 ```
 chi2.zarr/field{F}/spw{S}/scan{N}
-  chi2, counts        (time_bin, freq_bin, corr, antenna1, antenna2)
+  chi2, counts        (time_bin, freq_bin, product, antenna1, antenna2)
   t0/tf               time-slot bounds of each time bin, within the scan
   chan0/chanf         channel bounds of each frequency bin
-  attrs               ms, rcol, wcol, fcol, antenna_names
+  attrs               ms, rcol, wcol, fcol, mcol, gtable, corr_labels, antenna_names
 ```
 
 Two things are easy to get wrong here:
 
-- **`corr` holds resolved polarization indices, not offsets into `--use-corrs`.**
-  The default `[0, -1]` is stored as `[0, 3]` for a 4-correlation MS. Store the
-  offset instead and every waterfall shows the wrong polarization.
+- **`product` holds labels** -- `XX`, `YY` for the default `--use-corrs`, then
+  any `--stokes` (`I`, `V`). They are resolved from `POLARIZATION::CORR_TYPE`,
+  not offsets into `--use-corrs`, and the waterfall forms the same label from
+  the MS. Stores written before products existed have a `corr` axis instead;
+  `Chi2Store.bins` refuses them with a message to rerun `chi2`.
 - **Bin bounds must be stored.** Without `t0`/`chan0` the app cannot outline the
   clicked chunk on the scan's waterfall, and would have to re-derive the
   chunking from `--ntimes`/`--nfreqs`.
@@ -73,8 +75,10 @@ Verified against 0.5.9 (see `tests/fixtures/ms.py`):
   `VISIBILITY` and `WEIGHT_SPECTRUM` as `WEIGHT`. Do not hardcode that: read
   `node.ds.attrs["data_groups"][group]["correlated_data"]` / `["weight"]` /
   `["flag"]`, as `pfb-imaging`'s `core/imager.py` does. `msdata.DataGroup`
-  wraps this and `DataGroup.resolve()` translates MSv2 names people type into
-  the MSv4 variable, so both spellings work in the UI.
+  wraps this and `DataGroup.resolve()` translates the MSv2 names the data group
+  maps (`DATA`, `WEIGHT_SPECTRUM`, `FLAG`), so both spellings work in the UI.
+  It must translate **nothing else**: it once mapped `CORRECTED_DATA` to
+  `VISIBILITY` too, so choosing `CORRECTED_DATA` plotted `DATA`.
 - **`data_groups` is attached by `open_datatree`, not `open_dataset`.** Hence
   `msdata.data_group()` opens the tree once and caches it, while the per-chunk
   reads use `open_dataset(partition_key=...)`.
@@ -82,12 +86,47 @@ Verified against 0.5.9 (see `tests/fixtures/ms.py`):
   secondary variables under their own names — which is exactly why `RESIDUAL` is
   plottable. Standard columns other than `DATA`/`WEIGHT_SPECTRUM` are dropped,
   except `CORRECTED_DATA`, `MODEL_DATA`, `FLOAT_DATA` and
-  `CORRECTED_WEIGHT_SPECTRUM`.
+  `CORRECTED_WEIGHT_SPECTRUM`. Those four appear under their own names --
+  only once their cells are defined, so an empty `MODEL_DATA` is invisible.
+- **`time` is decoded to unix seconds** (`attrs["format"] == "unix"`). Gain
+  tables and flag versions are keyed on the MS's MJD-second `TIME`, so
+  `msdata.ms_times()` adds `MJD_UNIX_OFFSET` back before matching.
+- The partition's `polarization` coordinate already holds labels (`XX` ...),
+  which is what `msdata.labels()` returns.
 - Baselines are addressed by antenna *name*, via the `baseline_antenna1_name` /
   `baseline_antenna2_name` coordinates, hence the names stored in the zarr.
 - **xarray-ms lays a regular (time, baseline) grid and fills gaps with NaN.**
   Those slots hold no data, so `waterfall()` folds `~isfinite` into the flag
   mask rather than letting them punch holes in the colour scale.
+
+## Waterfall controls: product, model, gains, flag version
+
+The waterfall panel carries six controls: product, column, model, gain table,
+flag version, quantity. They recompute **the waterfall only**. The heatmap is
+what `chi2` measured, so the controls default to how it was formed (the zarr's
+`rcol`/`mcol`/`gtable` attrs and the selected product), and the panel shows a
+note once they no longer describe the same quantity. Recomputing the heatmap
+on the fly was ruled out: one chunk is every baseline across the chunk, which
+at MeerKAT scale is hundreds of MB per click.
+
+The plotted quantity is `inv(G_p) column inv(G_q)^H - model` formed into the
+product, via `utils/products.form` -- the same function `chi2` uses, so the two
+cannot drift apart. `chi2`'s recorded `DATA` is resolved to `VISIBILITY` before
+it reaches the menus, or the column would be listed twice.
+
+- **Gain table** is free text: a QuartiCal term (`gains.qc/NET`, or pfb's
+  `gains.qc::NET`). Gains are read only for the antennas in the partition and
+  apply on-grid only (see [chi2-pipeline.md](chi2-pipeline.md)). The term is
+  cached on the directory's mtime, so a re-solve is picked up.
+- **Flag version** lists CASA's `<ms>.flagversions/FLAG_VERSION_LIST`
+  (`name : comment` lines) where `flags.<name>` exists. Version tables are
+  row-aligned with the main table, so the baseline's rows are found with a
+  python-casacore query on the main table and the same row numbers read from
+  the version; `FLAG_ROW` is ORed in and grid slots with no row are flagged.
+  Only listed names are accepted, which also keeps the name from being a path.
+- **Problems are reported in the panel**, not as a broken image: the
+  `/waterfall` route runs `msdata.check()` (columns exist, product formable,
+  gains load and align, version exists) before emitting the `<img>`.
 
 ## Colour scaling
 
@@ -115,7 +154,12 @@ xarray-ms refuses to construct the MSv4 view: `FEED` (validated against
 `ANTENNA1`/`ANTENNA2`), `STATE`, and the `FIELD` direction columns
 (`PHASE_DIR`/`REFERENCE_DIR`/`DELAY_DIR`). The fixture plants an inflated
 residual on one baseline, and the tests follow that outlier all the way to the
-rendered grid.
+rendered grid. Its columns are mutually consistent --
+`DATA = G_p MODEL_DATA G_q^H + RESIDUAL` and
+`CORRECTED_DATA = inv(G_p) DATA inv(G_q)^H`, with diagonal gains varying in
+time, channel and antenna -- so the corrections are checked exactly.
+`write_gain_table` writes those gains as a QuartiCal term and
+`add_flag_version` writes a CASA flag version.
 
 Tests skip cleanly without the `[full,web]` extras; `tests/conftest.py` carries
 the `needs_ms` / `needs_web` markers.

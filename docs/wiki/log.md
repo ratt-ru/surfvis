@@ -2,11 +2,25 @@
 type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
-timestamp: 2026-09-18
-last_verified_commit: 57c55fc
+timestamp: 2026-10-14
+last_verified_commit: 81f37f1
 ---
 
 # Wiki changelog
+
+## 2026-10-14 — corrections, Stokes and flag versions (verified at `81f37f1`)
+
+Issues #12, #13 and #14, on the browser branch.
+
+- **Updated** `chi2-pipeline.md`: the `inv(G_p) R inv(G_q)^H - M` formula behind
+  `--mcol`/`--gtable`, exact Stokes weights (and why radiomesh's imaging
+  weights are not used), on-grid QuartiCal gains, one task per (time, freq)
+  forming every product, new image names, and the inherited bug that made
+  every per-correlation image identical.
+- **Updated** `web-app.md`: the zarr's `product` axis and new attrs, the
+  waterfall controls and why they leave the heatmap alone, CASA flag versions,
+  the `CORRECTED_DATA` resolve bug, and xarray-ms decoding TIME to unix seconds.
+- **Updated** `migration.md` (new chi2 options, image names) and `index.md`.
 
 ## 2026-09-19 — chi-squared browser (verified at `0070303`)
 

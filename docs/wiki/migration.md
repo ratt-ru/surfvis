@@ -3,8 +3,8 @@ type: reference
 title: Migration from the optparse entry points
 description: Option-by-option mapping from the pre-hip-cargo surfvis/surfchi2/flagchi2 scripts to the single surfvis Typer app.
 tags: [migration, cli, breaking-changes]
-timestamp: 2026-09-18
-last_verified_commit: 57c55fc
+timestamp: 2026-10-14
+last_verified_commit: 81f37f1
 ---
 
 # Migration from the optparse entry points
@@ -59,6 +59,11 @@ All long names unchanged: `--rcol`, `--wcol`, `--fcol`, `--dataout`,
   identical.
 - `--dataout`/`--imagesout` default to `None` rather than `''`; both still
   resolve to `$CWD/chi2`.
+- New, with no surfchi2 equivalent: `--mcol`, `--gtable`, `--stokes` (see
+  [chi2-pipeline.md](chi2-pipeline.md)).
+- Chunk images are named `t<t>_f<f>_<product>.png` (`..._XX.png`) rather than
+  `..._c<c>.png`, and each correlation's image is now that correlation's
+  chi-squared -- surfchi2 summed all of `--use-corrs` into every one.
 
 ## `flagchi2` → `surfvis flag-chi2`
 

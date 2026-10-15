@@ -4,7 +4,7 @@ title: Chi-squared browser
 description: How surfvis serve links surfchi2 output to on-demand baseline waterfalls, the waterfall's correction / Stokes / flag-version controls, and the xarray-ms facts it depends on.
 tags: [web, fastapi, htmx, xarray-ms, zarr]
 timestamp: 2026-10-15
-last_verified_commit: 3a7ffd4
+last_verified_commit: fb5c6ae
 ---
 
 # Chi-squared browser
@@ -98,6 +98,10 @@ Verified against 0.5.9 (see `tests/fixtures/ms.py`):
 - **xarray-ms lays a regular (time, baseline) grid and fills gaps with NaN.**
   Those slots hold no data, so `waterfall()` folds `~isfinite` into the flag
   mask rather than letting them punch holes in the colour scale.
+
+- **xarray-ms warns on every open** (imputed metadata, column shapes, UVW
+  frame, irregular grids). `msdata` calls `utils.msv4.ignore_xarray_ms_warnings()`
+  at module scope, the same filter set as pfb-imaging.
 
 ## Waterfall controls: product, model, gains, flag version
 

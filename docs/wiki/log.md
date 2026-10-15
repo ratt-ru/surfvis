@@ -3,10 +3,16 @@ type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
 timestamp: 2026-10-15
-last_verified_commit: 1dbfc61
+last_verified_commit: cbc07fa
 ---
 
 # Wiki changelog
+
+## 2026-10-15 — first run on real data (verified at `cbc07fa`)
+
+- **Updated** `web-app.md`: `chi2` workers force matplotlib's `Agg` backend
+  (a dropped X forward killed the pool); the grid's diagonal is not
+  clickable and the header counts each baseline once.
 
 ## 2026-10-15 — write-line pins, 3.10 CLI-only (verified at `1dbfc61`)
 

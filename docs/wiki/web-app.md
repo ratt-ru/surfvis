@@ -3,8 +3,8 @@ type: reference
 title: Chi-squared browser
 description: How surfvis serve links surfchi2 output to on-demand baseline waterfalls, the waterfall's correction / Stokes / flag-version controls, and the xarray-ms facts it depends on.
 tags: [web, fastapi, htmx, xarray-ms, zarr]
-timestamp: 2026-10-14
-last_verified_commit: 85c6bcd
+timestamp: 2026-10-15
+last_verified_commit: cbc07fa
 ---
 
 # Chi-squared browser
@@ -129,6 +129,13 @@ it reaches the menus, or the column would be listed twice.
 - **Problems are reported in the panel**, not as a broken image: the
   `/waterfall` route runs `msdata.check()` (columns exist, product formable,
   gains load and align, version exists) before emitting the `<img>`.
+
+## The grid
+
+The matrix holds each baseline twice, as `(p, q)` and `(q, p)`, so the header
+counts the upper triangle. Diagonal cells are autocorrelations, which `chi2`
+does not measure: they carry no `hx-get`, since the waterfall route would
+answer them with a 404 that renders as a broken image.
 
 ## Colour scaling
 

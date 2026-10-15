@@ -50,7 +50,8 @@ main { display: flex; flex-direction: column; gap: 1rem; padding: 1rem; }
   border: 1px solid var(--line);
 }
 .grid i { display: block; cursor: pointer; }
-.grid i:hover { outline: 2px solid var(--accent); outline-offset: -1px; z-index: 2; position: relative; }
+.grid i.auto { cursor: default; }
+.grid i:not(.auto):hover { outline: 2px solid var(--accent); outline-offset: -1px; z-index: 2; position: relative; }
 .axis { color: var(--muted); font-size: 0.72rem; margin: 0.35rem 0 0; }
 
 .hist { margin: 0; flex: 0 0 auto; }

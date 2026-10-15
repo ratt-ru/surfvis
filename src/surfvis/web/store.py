@@ -112,6 +112,12 @@ class Chunk:
         """The non-NaN values, i.e. the antenna pairs that had unflagged data."""
         return self.chi2_dof[~np.isnan(self.chi2_dof)]
 
+    @property
+    def nbaselines(self) -> int:
+        """Baselines with unflagged data. The grid holds each one twice, as (p, q) and (q, p)."""
+        valid = ~np.isnan(self.chi2_dof)
+        return int(np.triu(valid | valid.T, k=1).sum())
+
 
 @lru_cache(maxsize=32)
 def _open_group(path: str, field: int, spw: int, scan: int) -> xr.Dataset:

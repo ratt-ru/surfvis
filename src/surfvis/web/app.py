@@ -114,7 +114,7 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
                 "vmin": vmin,
                 "vmax": vmax,
                 "scale": scale,
-                "nvalid": int(finite.size),
+                "nvalid": chunk.nbaselines,
                 "worst": float(np.nanmax(chunk.chi2_dof)) if finite.size else float("nan"),
                 "median": float(np.median(finite)) if finite.size else float("nan"),
                 "query": urlencode({"field": field, "spw": spw, "scan": scan, "t": t, "f": f, "c": c}),

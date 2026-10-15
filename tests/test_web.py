@@ -189,8 +189,10 @@ def test_routes(chi2_zarr):
 
     heatmap = client.get("/heatmap?field=0&spw=0&scan=1&t=0&f=0&c=XX")
     assert heatmap.status_code == 200
-    # One clickable cell per antenna pair.
-    assert heatmap.text.count('hx-get="/waterfall') == 64
+    # One clickable cell per ordered antenna pair; the diagonal is not a baseline.
+    assert heatmap.text.count('hx-get="/waterfall') == 64 - 8
+    assert heatmap.text.count('class="auto"') == 8
+    assert "28 baselines" in heatmap.text
 
     png = client.get("/histogram.png?field=0&spw=0&scan=1&t=0&f=0&c=XX")
     assert png.headers["content-type"] == "image/png"

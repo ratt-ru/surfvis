@@ -155,6 +155,11 @@ that point, and forking a process with live threads deadlocks the children —
 the parent sits in `as_completed` forever. This was reproducible on every run
 before the fix.
 
+Spawned workers re-import matplotlib, so `utils/plotting.py` forces `Agg`.
+Otherwise a forwarded `DISPLAY` selects TkAgg, and when the X connection drops
+(a closed SSH session under `screen`) every worker dies on an XIO error and the
+parent raises `BrokenProcessPool`.
+
 ## Testing
 
 `tests/fixtures/ms.py` writes a real Measurement Set with python-casacore, small

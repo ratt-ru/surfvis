@@ -93,6 +93,22 @@ def test_waterfall_accepts_either_antenna_order(chi2_zarr):
 
 
 @needs_web
+def test_waterfall_carries_the_baseline_length(chi2_zarr):
+    """The title's baseline length is the distance between ANTENNA::POSITION rows."""
+    from casacore.tables import table
+
+    from surfvis.web import msdata
+
+    ms = chi2_zarr["ms"]["path"]
+    names = chi2_zarr["ms"]["antenna_names"]
+    with table(f"{ms}::ANTENNA", ack=False) as ant:
+        positions = ant.getcol("POSITION")
+    wf = msdata.waterfall(ms, 0, 0, 1, names[1], names[5], "XX", "RESIDUAL")
+    assert wf.length == pytest.approx(np.linalg.norm(positions[1] - positions[5]))
+    assert wf.length > 0
+
+
+@needs_web
 def test_residual_is_plottable_but_flag_is_not(chi2_zarr):
     """RESIDUAL is non-standard, so xarray-ms surfaces it; FLAG is the overlay."""
     from surfvis.web import msdata

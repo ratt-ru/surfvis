@@ -77,6 +77,8 @@ class Waterfall:
     product: str
     # Chunk rectangle in (time slot, channel) coordinates; None if not given.
     rect: tuple[int, int, int, int] | None
+    # Metres, from ANTENNA::POSITION; None if it could not be read.
+    length: float | None = None
 
 
 @lru_cache(maxsize=8)
@@ -213,6 +215,24 @@ def baseline_index(ds: xarray.Dataset, name1: str, name2: str) -> int:
     if hit.size == 0:
         raise KeyError(f"No baseline {name1}-{name2} in this partition")
     return int(hit[0])
+
+
+@lru_cache(maxsize=8)
+def _antenna_positions(ms: str) -> dict[str, np.ndarray]:
+    import arcae
+
+    ant = arcae.table(f"{ms}::ANTENNA")
+    try:
+        names, positions = ant.getcol("NAME"), np.asarray(ant.getcol("POSITION"), dtype=float)
+    finally:
+        ant.close()
+    return {str(n): positions[k] for k, n in enumerate(names)}
+
+
+def baseline_length(ms: str, name1: str, name2: str) -> float:
+    """Distance between two antennas in metres, from ``ANTENNA::POSITION`` (ITRF)."""
+    positions = _antenna_positions(ms)
+    return float(np.linalg.norm(positions[name1] - positions[name2]))
 
 
 def labels(ms: str, field: int, spw: int, scan: int) -> list[str]:
@@ -485,6 +505,7 @@ def waterfall(
         quantity=quantity,
         product=product,
         rect=rect,
+        length=baseline_length(ms, name1, name2),
     )
 
 

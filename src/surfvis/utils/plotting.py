@@ -2,6 +2,9 @@
 
 import matplotlib as mpl
 
+# Workers only write PNGs. Without this, a forwarded DISPLAY selects TkAgg, and
+# when the X connection dies every worker exits on an XIO error.
+mpl.use("Agg")
 mpl.rcParams.update({"font.size": 11, "font.family": "serif"})
 
 import dask  # noqa: E402

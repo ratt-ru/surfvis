@@ -127,5 +127,4 @@ multi-correlation MS, `[0]` otherwise. In `chi2` these resolve to labels
 (`XX`, `YY`) via `POLARIZATION::CORR_TYPE`, and `--stokes` appends Stokes
 products; `--use-corrs` does not restrict which Stokes can be formed. Every
 spectral window must have the same correlations. `CORR_TYPE` and `CHAN_FREQ`
-are read with arcae (`_spectral_setup`), not python-casacore, which makes
-`chi2` need Python 3.11+.
+are read with arcae (`_spectral_setup`), not python-casacore.

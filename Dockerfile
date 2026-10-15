@@ -12,7 +12,8 @@ COPY src/ src/
 # Install package with full dependencies.
 # python-casacore, numba and dask-ms all ship manylinux wheels, so no apt-get
 # of casacore/llvm is needed on this base image.
-RUN uv pip install --system --no-cache ".[full,web]"
+# --prerelease=allow: the xarray-ms/arcae write-support line is prerelease-only.
+RUN uv pip install --system --no-cache --prerelease=allow ".[full,web]"
 
 # Make CLI available
 CMD ["surfvis", "--help"]

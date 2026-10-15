@@ -182,10 +182,17 @@ the MSv4 view unless `FEED` (validated against ANTENNA1/2), `STATE`, and the
 batch task. `generate-cabs` skips undecorated functions, which is what keeps
 `serve.yml` from existing.
 
-**The `[web]` extra and `chi2` need Python 3.11+** (xarray-ms, arcae). The
-other batch commands still support 3.10, hence the environment markers in
-`pyproject.toml`. On 3.10, `core.chi2` fails to import and the CLI falls back
-to the container, as it does for any missing heavy dependency.
+**Python 3.10 is CLI-plus-container only.** Every `[full]`/`[web]` dependency
+carries a `python_version >= '3.11'` marker, so on 3.10 the core imports fail
+and the CLI falls back to the container (`python:3.11-slim`). Native execution
+and `serve` need 3.11+.
+
+**The xarray-ms/arcae pins point down, deliberately.** Write support (needed to
+move `flag-chi2` onto `to_msv2`) is on the `0.4.0a*` line, which is cut from
+later commits than `0.5.x`; `0.5.x` has none. Hence `xarray-ms>=0.4.0a12,<0.5.0`,
+`arcae>=0.4.0a14,<0.5.0` and `prerelease = "allow"`, as in pfb-imaging. Never
+raise the ceilings. Allowing prereleases also resolves dask-ms to `0.3.0a1`
+and zarr to 3; the suite passes on both.
 
 **New table reads go through arcae, not python-casacore.** surfvis is moving
 to arcae + xarray-ms (issue #11). Two arcae quirks: boolean columns come back

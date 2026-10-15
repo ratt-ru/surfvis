@@ -255,8 +255,9 @@ residual column the chi-squared came from is plottable.
 ### Troubleshooting
 
 **`The web interface needs the optional extras`** -- install
-`surfvis[full,web]`. Note xarray-ms needs Python 3.11 or newer; the batch
-commands still run on 3.10.
+`surfvis[full,web]`. Native execution needs Python 3.11 or newer; on
+3.10 only the lightweight CLI is supported, and it runs every batch command in
+the container.
 
 **`No chi-squared dataset at ...`** -- `--data` wants the zarr from
 `chi2 --dataout`, not the `--imagesout` directory of PNGs.

@@ -2,11 +2,18 @@
 type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
-timestamp: 2026-10-14
-last_verified_commit: 85c6bcd
+timestamp: 2026-10-15
+last_verified_commit: 1dbfc61
 ---
 
 # Wiki changelog
+
+## 2026-10-15 — write-line pins, 3.10 CLI-only (verified at `1dbfc61`)
+
+- **Updated** `chi2-pipeline.md`: dropped the claim that arcae is what makes
+  `chi2` need 3.11 -- all native execution needs 3.11 now; 3.10 is CLI plus
+  container only. The xarray-ms/arcae write-line pins are recorded in
+  CLAUDE.md's sharp edges.
 
 ## 2026-10-14 — arcae for new table reads (verified at `85c6bcd`)
 

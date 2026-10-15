@@ -22,6 +22,9 @@ import xarray
 
 from surfvis.utils import gains as gains_mod
 from surfvis.utils import products
+from surfvis.utils.msv4 import ignore_xarray_ms_warnings
+
+ignore_xarray_ms_warnings()
 
 QUANTITIES = ("amp", "phase", "real", "imag")
 

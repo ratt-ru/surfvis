@@ -26,6 +26,7 @@ EXPECTED = {
     "test_install.py": (2, 0),
     "test_planes.py": (8, 0),
     "test_products.py": (7, 0),
+    "test_js.py": (1, 0),
     "test_rasterise.py": (6, 0),
     "test_roundtrip.py": (4, 0),
     "test_suite_integrity.py": (3, 0),

@@ -4,7 +4,7 @@ title: Chi-squared browser
 description: How surfvis serve links surfchi2 output to on-demand baseline waterfalls, the waterfall's correction / Stokes / flag-version controls, and the xarray-ms facts it depends on.
 tags: [web, fastapi, htmx, xarray-ms, zarr]
 timestamp: 2026-10-16
-last_verified_commit: 1ab4f7c
+last_verified_commit: 3eb66e8
 ---
 
 # Chi-squared browser
@@ -224,6 +224,42 @@ the old one with new HTML after an upgrade: no indicators, an unsized
 histogram.
 
 The selected cell keeps an outline (`.selected`) across heatmap re-renders.
+
+## Manual flagging (write path)
+
+Design: issue #16. Source: `web/flagging.py`, the `/flag*` routes in `app.py`.
+The page has no selection tool yet (next: a canvas waterfall); the routes are
+driven by JSON.
+
+- **Selections are polygons** in the waterfall's (time slot, channel) data
+  coordinates; a rectangle is four vertices. `rasterise` selects a cell when
+  its centre `(i, j)` is inside, by even-odd, with half-open edges, so a
+  rectangle around slots `t0..t1` and channels `c0..c1` has corners at
+  `t - 0.5` / `c + 0.5`. The server's mask is what is written; a client preview
+  must use the same rule.
+- **`POST /flag`** takes `{field, spw, scan, p, q, product, vertices,
+  correlations, dry_run}`. `correlations` is `product` (those the plotted
+  product is formed from: XX and YY for I) or `all`. Rows are found with
+  `msdata.baseline_rows` (arcae TaQL, shared with the flag-version reader) and
+  mapped to slots with `msdata.slot_index`. `FLAG_ROW` is set where a row
+  becomes fully flagged. 403 without `--allow-flagging`; 400 for an empty or
+  unformable selection; 422 for fewer than three vertices.
+- **Backup.** The first write of a session saves FLAG and FLAG_ROW as a CASA
+  flag version, `surfvis_before_<UTC>`, via `Table.from_descriptor` with the
+  source's column descriptors, copied one `DATA_DESC_ID` run at a time in
+  ~256 MB chunks. Keep arcae's `_c_order` hint in the descriptor: without it
+  a tiled FLAG column's fixed cell shape is read transposed and the copy fails.
+  TaQL `SELECT ... GIVING ... AS PLAIN` was rejected: it copies every subtable
+  and labels the result a Measurement Set.
+- **Undo** (`POST /flag/undo`) restores the rows' previous FLAG and FLAG_ROW,
+  last edit first; 409 when empty. The stack is per process; the backup
+  version is the durable fallback. `GET /flag/state` lists the edits.
+- After a write `msdata.invalidate(ms)` drops the caches, so the next
+  waterfall shows the new flags even within one mtime tick. Writes go through
+  a separate arcae handle in the same process as xarray-ms's read handle;
+  casacore shares the underlying table, and the tests confirm reads see writes.
+- `Flagger` serialises apply/undo with a lock: FastAPI runs sync routes in a
+  thread pool.
 
 ## Colour scaling
 

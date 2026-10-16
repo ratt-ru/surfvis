@@ -22,8 +22,8 @@ container runtime (apptainer, singularity, docker or podman) but not the
 scientific Python stack.
 
 To run natively instead, install the heavy dependencies
-(`python-casacore`, `dask-ms`, `numba`, `matplotlib`, `astropy`, `xarray`,
-`dask`):
+(`python-casacore`, `arcae`, `dask-ms`, `numba`, `matplotlib`, `astropy`,
+`xarray`, `dask`); native execution needs Python 3.11 or newer:
 
 ```bash
 pip install 'surfvis[full]'
@@ -43,7 +43,7 @@ surfvis --help
 |---|---|
 | `surfvis summary` | Print the FIELD, SPECTRAL_WINDOW and ANTENNA tables of an MS. |
 | `surfvis surf` | One time/frequency PNG per baseline. |
-| `surfvis chi2` | Per-(time, freq, product) chi-squared images plus a per-scan combination. |
+| `surfvis chi2` | Per-(time, freq, product) chi-squared images plus a per-scan combination. Can form the corrected residual on the fly and add Stokes products. |
 | `surfvis flag-chi2` | Flag visibilities whose chi-squared exceeds a threshold. Modifies the MS in place. |
 | `surfvis serve` | Browse chi-squared output in a browser and plot baseline waterfalls on demand. |
 
@@ -63,10 +63,9 @@ surfvis surf --ms /data/my.ms --i 4 --j 17 --plot phase --noflags
 surfvis chi2 --ms /data/my.ms --rcol RESIDUAL --wcol WEIGHT_SPECTRUM \
     --nthreads 8 --nfreqs 64 --imagesout /scratch/chi2
 
-# The same, without a RESIDUAL column: corrected DATA minus MODEL_DATA,
-# with Stokes I and V alongside the diagonal correlations
+# The same, without a RESIDUAL column (see below)
 surfvis chi2 --ms /data/my.ms --rcol DATA --mcol MODEL_DATA \
-    --gtable /data/gains.qc/NET --stokes I,V --imagesout /scratch/chi2
+    --gtable /data/gains.qc/NET --imagesout /scratch/chi2
 
 # Flag anything above chi2 = 5, leaving baselines to antennas 0 and 1 alone
 surfvis flag-chi2 --ms /data/my.ms --flag-above 5 --respect-ants 0,1
@@ -74,6 +73,54 @@ surfvis flag-chi2 --ms /data/my.ms --flag-above 5 --respect-ants 0,1
 
 Comma-separated list options (`--spw`, `--use-corrs`, `--respect-ants`) take a
 single argument with no spaces: `--use-corrs 0,3`.
+
+## Corrected residuals on the fly
+
+`surfvis chi2` no longer needs a `RESIDUAL` column. Give it the data, the model
+and the gains, and it forms the corrected residual itself, per 2x2 visibility:
+
+```
+r = inv(G_p) D inv(G_q)^H - M
+```
+
+where `D` is `--rcol`, `M` is `--mcol` and `G` is the QuartiCal gain term in
+`--gtable`. Nothing is written back to the MS.
+
+```bash
+surfvis chi2 --ms /data/my.ms \
+    --rcol DATA --mcol MODEL_DATA --gtable /data/gains.qc/NET \
+    --wcol WEIGHT_SPECTRUM \
+    --dataout /data/chi2.zarr --imagesout /data/chi2
+```
+
+Which options to pass depends on what the MS already holds:
+
+| The MS has | Pass |
+|---|---|
+| a residual column your pipeline wrote | `--rcol RESIDUAL` (the default) |
+| `DATA`, `MODEL_DATA` and a QuartiCal gain solution | `--rcol DATA --mcol MODEL_DATA --gtable gains.qc/NET` |
+| gains already applied to `CORRECTED_DATA` | `--rcol CORRECTED_DATA --mcol MODEL_DATA` |
+
+Things to know:
+
+- **`MODEL_DATA` is the uncorrupted model.** It is subtracted *after* the
+  gains are removed, so do not pass a model that already has the gains applied.
+- **The gain term** is a QuartiCal output directory such as `gains.qc/NET`
+  (pfb-imaging's `gains.qc::NET` spelling also works). Use the net gains if you
+  solved for several terms.
+- **Gains must be on the data's grid.** Each gain axis has to match the scan's
+  times and the channel frequencies exactly, or have length one. Solutions on
+  coarser intervals are rejected, not interpolated, so write net gains at the
+  data's resolution. Antennas missing from the table are flagged.
+- **Weights are propagated through the correction exactly**, and gain flags are
+  ORed into the data flags. For diagonal gains the chi-squared is therefore the
+  same as for the uncorrected residual `D - G_p M G_q^H`; the gains matter for
+  what you *see* in the waterfall and for Stokes products.
+- **`--stokes I,V`** adds Stokes products, formed from the corrected
+  correlations, alongside `--use-corrs`. Each needs the correlations it is
+  formed from (V from linear feeds needs `XY` and `YX`).
+- The zarr from `--dataout` records `--rcol`, `--mcol` and `--gtable`, so
+  `surfvis serve` plots waterfalls of the same quantity by default.
 
 ## Browsing chi-squared interactively
 
@@ -103,6 +150,10 @@ scan for 64 antennas at `--nfreqs 128`; a long observation is a few hundred MB.
 
 The Measurement Set path is recorded inside the dataset, so `serve` finds it on
 its own. Pass `--ms` only if the MS has moved since.
+
+To browse corrected residuals without a `RESIDUAL` column, form them on the
+fly as described in [Corrected residuals on the fly](#corrected-residuals-on-the-fly):
+add `--rcol DATA --mcol MODEL_DATA --gtable gains.qc/NET` to the command above.
 
 The waterfall panel can switch product (correlation or Stokes), subtract a
 model column, apply a QuartiCal gain term (`gains.qc/NET`) and overlay a saved
@@ -191,8 +242,12 @@ If port 8000 is already taken, pick another and keep both sides consistent:
 
 ### Using the interface
 
-**The controls along the top** choose which chunk you are looking at: field,
-spw, scan, then the time bin and frequency bin within that scan, then the
+A bar across the top of the page runs while anything is loading. The part being
+replaced dims, and plots show a spinner until they arrive; reading a waterfall
+from the MS is the slow part.
+
+**The controls along the top** choose which chunk you are looking at: field
+(listed by name), spw, scan, then the time bin and frequency bin within that scan, then the
 polarization. These are the same chunks `surfchi2` wrote PNGs for -- the bins
 follow the `--ntimes` and `--nfreqs` you ran with.
 
@@ -200,13 +255,14 @@ follow the `--ntimes` and `--nfreqs` you ran with.
 same quantity as the `surfchi2` images. Rows are antenna1, columns antenna2,
 and it is symmetric. Dark grey cells along the diagonal are auto-correlations,
 which carry no chi-squared; dark grey anywhere else means every visibility for
-that pair was flagged. Hover a cell for the antenna names. A single bad antenna
+that pair was flagged. Hovering a cell shows the antenna names, chi-squared/dof
+and baseline length under the grid. A single bad antenna
 shows up as a bright row *and* column -- that cross is the pattern worth
 looking for, and it is why the grid is worth keeping rather than just ranking
 the worst pairs.
 
 **The histogram** beside the grid is the whole distribution over antenna pairs,
-with a dashed line at chi-squared/dof = 1. This is how you judge whether a
+with a dashed line at chi-squared/dof = 1 when that falls within the data. This is how you judge whether a
 chunk has outliers at all: a single clean peak means the colour scale is just
 stretched over noise, whereas a long tail or a detached bar means something is
 genuinely wrong. The colourbar underneath is the scale the grid is using.
@@ -220,17 +276,23 @@ better view once you know where the problem is, though it degenerates when
 there are few antenna pairs. `full` is plain min-to-max.
 
 **Clicking any cell** plots that baseline's waterfall below: the whole scan by
-all channels, for the polarization you are viewing. The chunk you clicked is
-outlined in green, so you can see whether the bad chunk is isolated or part of
-something larger. Flagged data is greyed out, as are slots where the MS has no
-data at all.
+all channels against UTC, for the product you are viewing. The chunk you
+clicked is outlined in green, so you can see whether the bad chunk is isolated
+or part of something larger. Flagged data is greyed out, as are slots where the
+MS has no data at all.
 
-**The column and quantity selectors** under the waterfall re-plot without
-changing your place in the grid. Quantity is `amp`, `phase`, `real` or `imag`.
-Column defaults to whatever `--rcol` the chi-squared was computed from, which
-is usually what you want -- you are asking "does this residual look like
-noise?" -- but switching to the data column tells you whether the problem is in
-the data or in the model subtracted from it.
+The selected baseline stays selected. **Arrow keys** move it (up/down change
+antenna1, left/right antenna2), and changing the field, scan, bin or product
+re-plots the same baseline there.
+
+**The controls under the waterfall** re-plot it without changing your place in
+the grid: product, column, model, gain table, flag version and quantity (`amp`,
+`phase`, `real` or `imag`). They default to how `chi2` formed the chi-squared,
+which is usually what you want -- you are asking "does this residual look like
+noise?" -- but dropping the model tells you whether the problem is in the data
+or in the model subtracted from it. Anything you change carries over as you
+click from baseline to baseline. Once the settings no longer match the heatmap,
+the panel says so.
 
 ### A note on column names (MSv2 vs MSv4)
 
@@ -241,15 +303,15 @@ as an **MSv4** view. MSv4 renames the columns you are used to:
 | You know it as | MSv4 calls it |
 |---|---|
 | `DATA` | `VISIBILITY` |
-| `CORRECTED_DATA` | `VISIBILITY` (of the corrected data group) |
+| `CORRECTED_DATA` | `CORRECTED_DATA` (kept under its own name) |
 | `WEIGHT_SPECTRUM` | `WEIGHT` |
 | `FLAG` | `FLAG` |
 
 surfvis resolves this through the dataset's `data_groups` attribute rather than
 hardcoding the mapping, the same way `pfb-imaging` does, so **either name
-works** in the column selector and on the URL. Columns that are not part of the
-MSv2 standard -- `RESIDUAL`, `MODEL`, anything your calibration pipeline wrote
--- are not renamed and appear under their own names. That is precisely why the
+works** in the column selector and on the URL. `CORRECTED_DATA`, `MODEL_DATA`
+and columns that are not part of the MSv2 standard -- `RESIDUAL`, anything your
+calibration pipeline wrote -- are not renamed and appear under their own names. That is precisely why the
 residual column the chi-squared came from is plottable.
 
 ### Troubleshooting
@@ -297,6 +359,9 @@ select a compatible subset.
 
 `surfvis flag-chi2` writes to the flag column of the MS you give it. There is
 no dry-run.
+
+`surfvis serve` is read-only. Manual flagging from the waterfall is planned in
+[#16](https://github.com/ratt-ru/surfvis/issues/16).
 
 ## Development
 

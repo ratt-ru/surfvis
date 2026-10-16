@@ -49,7 +49,7 @@ docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/src -w /src \
    PYTHONPATH=/tmp/t:/src/src:/src /tmp/t/bin/pytest tests/ -q -W ignore"
 ```
 
-That is the only way to run the full suite (48 tests). **CI does not run them** —
+That is the only way to run the full suite (49 tests). **CI does not run them** —
 `.github/workflows/ci.yml` installs the lightweight package only, deliberately,
 since python-casacore and numba make CI slow and brittle. Verify locally.
 
@@ -69,8 +69,10 @@ Three layers, and the boundary between them is load-bearing:
 - **`cabs/`** is generated. Never edit by hand.
 - **`utils/`** is heavy too (`chisq.py` numba kernels, `plotting.py` matplotlib)
   and is imported only from `core/`.
-- **`web/`** is the browser: `store.py` (zarr), `msdata.py` (MS via xarray-ms),
-  `render.py` (colours + PNGs), `app.py` (FastAPI). Dask-free.
+- **`web/`** is the browser: `store.py` (zarr), `msdata.py` (MS via xarray-ms
+  and arcae), `render.py` (colours + PNGs), `app.py` (FastAPI), `templates/`
+  (htmx partials) and `static/app.js` (selection, hover readout, arrow keys,
+  carried settings, loading states). Dask-free, and read-only for now.
 - **`utils/products.py` and `utils/gains.py`** are the exception to "utils is
   heavy": numpy/xarray only, shared by `chi2` and `web/` so the heatmap and the
   waterfall form corrected residuals and Stokes products with the same code.
@@ -212,6 +214,13 @@ a test.
 fix changes generated CLI source, so every `cli/*.py` here will need
 regenerating with it.
 
+**Browser JS hooks `htmx:afterSettle`, not `afterSwap`,** to act on new
+content. At `afterSwap` htmx has not yet wired the new cells' `hx-get`, so a
+programmatic `click()` does nothing. Static URLs carry `?v=<digest>` because
+`StaticFiles` sends no `Cache-Control`: without it a browser paired new HTML
+with an old stylesheet after an upgrade. The heatmap ships its per-cell data as
+one JSON blob (`#grid-data`), not as attributes on 4000 cells.
+
 ## Direction of travel
 
 The project is **moving away from Dask and distributed**. `core/chi2.py` and
@@ -219,7 +228,11 @@ The project is **moving away from Dask and distributed**. `core/chi2.py` and
 not. Before writing new parallel
 or kernel code, consult `rarg-ray-patterns` (Ray actor autoscaling,
 `wrap_future` bridging `ObjectRef` to asyncio) and `rarg-numba-patterns` (atomic
-spinlocks, typed pointer intrinsics). The spawn workaround above is a band-aid
+spinlocks, typed pointer intrinsics). Manual flagging from the waterfall is designed in issue #16 (rectangle select on
+the PNG, arcae writes, `--allow-flagging`, a flag-version backup and undo);
+read it before adding any write path to `web/`.
+
+The spawn workaround above is a band-aid
 over the fork+threads architecture that this migration removes: numba atomics
 would let the chi-squared kernel accumulate into one shared matrix, deleting the
 process pool, the pickling and the parent reduction together.

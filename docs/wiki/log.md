@@ -3,10 +3,17 @@ type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
 timestamp: 2026-10-16
-last_verified_commit: 3cd34f5
+last_verified_commit: a811509
 ---
 
 # Wiki changelog
+
+## 2026-10-16 — README and agent files for PR #17 (verified at `a811509`)
+
+- **Updated** `index.md`: web-app.md now covers navigation and loading.
+- README gains "Corrected residuals on the fly"; CLAUDE.md and
+  `.claude/rules/architecture.md` describe `web/`, its JS sharp edges, and
+  point at the flagging design (#16).
 
 ## 2026-10-16 — browser navigation (verified at `3cd34f5`)
 

@@ -205,6 +205,8 @@ def test_routes(chi2_zarr):
     assert index.status_code == 200
     # Fields are listed by FIELD::NAME, keyed by FIELD_ID.
     assert '<option value="0" title="FIELD_ID 0" selected>testfield</option>' in index.text
+    # Static URLs are versioned, so an upgrade cannot pair new HTML with a cached stylesheet.
+    assert "/static/style.css?v=" in index.text
 
     heatmap = client.get("/heatmap?field=0&spw=0&scan=1&t=0&f=0&c=XX")
     assert heatmap.status_code == 200

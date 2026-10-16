@@ -79,7 +79,10 @@ main { display: flex; flex-direction: column; gap: 1rem; padding: 1rem; }
   animation: sweep 1s linear infinite;
   opacity: 0; transition: opacity 150ms;
 }
-#busy.htmx-request { opacity: 1; }
+/* A PNG still loading counts as busy too: the waterfall's is the MS read,
+   and its panel may be scrolled out of view. */
+#busy.htmx-request, body:has(.plot.loading) #busy { opacity: 1; }
+body:has(.plot.loading) .grid i:not(.auto) { cursor: progress; }
 @keyframes sweep { from { background-position: -40% 0; } to { background-position: 140% 0; } }
 
 #heatmap.loading, #waterfall.loading, #selectors.loading { opacity: 0.45; transition: opacity 150ms; pointer-events: none; }

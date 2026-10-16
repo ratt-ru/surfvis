@@ -1,5 +1,6 @@
 """FastAPI application wiring the chi-squared store to waterfall plots."""
 
+import hashlib
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -30,6 +31,10 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
     app = FastAPI(title="surfvis")
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
     templates = Jinja2Templates(directory=HERE / "templates")
+    # StaticFiles sends no Cache-Control, so browsers cache by heuristic and
+    # keep serving an old stylesheet after an upgrade. A version in the URL
+    # makes every change a new resource.
+    templates.env.globals["static_version"] = _static_version(HERE / "static")
 
     first = store.scans[0]
     ms_path = str(ms) if ms is not None else store.chunk(Selection(*first, 0, 0, store.bins(*first)[2][0])).ms
@@ -273,6 +278,12 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
         return {"status": "ok", "scans": len(store.scans), "ms": ms_path}
 
     return app
+
+
+def _static_version(root: Path) -> str:
+    """Short digest of the static files' names, sizes and mtimes."""
+    stats = sorted((p.name, p.stat().st_size, p.stat().st_mtime_ns) for p in root.iterdir() if p.is_file())
+    return hashlib.sha1(repr(stats).encode()).hexdigest()[:10]
 
 
 def _columns(ms: str, field: int, spw: int, scan: int, complex_only: bool = False) -> list[str]:

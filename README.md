@@ -252,6 +252,11 @@ A bar across the top of the page runs while anything is loading. The part being
 replaced dims, and plots show a spinner until they arrive; reading a waterfall
 from the MS is the slow part.
 
+**The waterfall** is drawn in the browser. The wheel zooms, shift-drag (or
+middle-drag) pans, `0` or "Reset view" resets, and hovering shows the time,
+frequency and value under the cursor. "show flags" toggles the flag overlay.
+Zooming in fetches the visible window at finer resolution.
+
 **The controls along the top** choose which chunk you are looking at: field
 (listed by name), spw, scan, then the time bin and frequency bin within that scan, then the
 polarization. These are the same chunks `surfchi2` wrote PNGs for -- the bins

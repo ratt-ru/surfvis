@@ -35,6 +35,19 @@ class FlagRequest(BaseModel):
     dry_run: bool = False
 
 
+class RevalidatedStaticFiles(StaticFiles):
+    """Static files the browser must revalidate (by ETag) on every use.
+
+    The ``?v=`` digest busts caches for files the page names, but imports
+    between ES modules under ``static/wf/`` cannot carry it.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 def create_app(data: str | Path, ms: str | Path | None = None, allow_flagging: bool = False) -> FastAPI:
     """Build the app around one chi-squared dataset.
 
@@ -50,7 +63,7 @@ def create_app(data: str | Path, ms: str | Path | None = None, allow_flagging: b
     """
     store = Chi2Store(data)
     app = FastAPI(title="surfvis")
-    app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
+    app.mount("/static", RevalidatedStaticFiles(directory=HERE / "static"), name="static")
     templates = Jinja2Templates(directory=HERE / "templates")
     # StaticFiles sends no Cache-Control, so browsers cache by heuristic and
     # keep serving an old stylesheet after an upgrade. A version in the URL

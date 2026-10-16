@@ -215,6 +215,8 @@ def test_routes(chi2_zarr):
     assert "/static/style.css?v=" in index.text
     # Save as PNG renders the page in the browser with the vendored html-to-image.
     assert 'id="save-png"' in index.text
+    # Static files revalidate: ES module imports cannot carry the ?v= version.
+    assert client.get("/static/wf/widget.mjs").headers["cache-control"] == "no-cache"
     assert client.get("/static/html-to-image.js").status_code == 200
 
     heatmap = client.get("/heatmap?field=0&spw=0&scan=1&t=0&f=0&c=XX")
@@ -474,7 +476,7 @@ def test_waterfall_controls(chi2_corrected):
     assert "no longer shows" not in panel.text
     # The column is corrected and has a model subtracted, so WEIGHT is not offered.
     assert '<option value="WEIGHT"' not in panel.text
-    assert "waterfall.png?" in panel.text
+    assert 'data-src="/waterfall.bin?' in panel.text and "<canvas" in panel.text
     assert 'class="keep"' not in panel.text
 
     png = client.get(base.replace("/waterfall?", "/waterfall.png?"))
@@ -489,7 +491,7 @@ def test_waterfall_controls(chi2_corrected):
 
     broken = client.get(base + "&gtable=/nowhere/NET")
     assert "gain table" in broken.text
-    assert "waterfall.png?" not in broken.text
+    assert "waterfall.bin?" not in broken.text
 
 
 @needs_web

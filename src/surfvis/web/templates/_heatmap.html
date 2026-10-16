@@ -24,14 +24,19 @@
           style="background:{{ colours[p][q] }}"
           hx-get="/waterfall?{{ query }}&p={{ p }}&q={{ q }}"
           hx-target="#waterfall"
+          hx-include="#waterfall .keep"
+          data-pq="{{ p }},{{ q }}"
           title="{{ names[p] }} &times; {{ names[q] }}"></i>{% endif %}{% endfor %}{% endfor %}
       </div>
       <p class="axis">antenna2 &rarr; (rows: antenna1)</p>
     </div>
 
     <figure class="hist">
-      <img src="/histogram.png?{{ query }}&scale={{ scale }}"
-           alt="Histogram of chi-squared per degree of freedom over all antenna pairs">
+      <div class="plot loading">
+        <img src="/histogram.png?{{ query }}&scale={{ scale }}"
+             onload="plotLoaded(this)" onerror="plotFailed(this)"
+             alt="Histogram of chi-squared per degree of freedom over all antenna pairs">
+      </div>
       <figcaption>
         {{ scale }} scale, {{ "%.3g"|format(vmin) }} &ndash; {{ "%.3g"|format(vmax) }}
       </figcaption>

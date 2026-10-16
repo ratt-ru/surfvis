@@ -6,7 +6,7 @@
     <select name="field"
             hx-get="/scans" hx-target="#selectors" hx-include="closest form" hx-swap="innerHTML">
       {% for value in store.fields %}
-      <option value="{{ value }}" {% if value == field %}selected{% endif %}>{{ value }}</option>
+      <option value="{{ value }}" title="FIELD_ID {{ value }}" {% if value == field %}selected{% endif %}>{{ field_names.get(value, value) }}</option>
       {% endfor %}
     </select>
   </label>

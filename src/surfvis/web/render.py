@@ -84,8 +84,10 @@ def histogram_png(values: np.ndarray, norm, title: str = "") -> bytes:
     collapses into a single bar.
     """
     log = isinstance(norm, LogNorm)
-    fig = plt.figure(figsize=(3.4, 3.8))
-    ax = fig.add_axes((0.17, 0.30, 0.78, 0.60))
+    # Square, to sit beside the (square) grid at the same size; margins are
+    # only what the tick labels need.
+    fig = plt.figure(figsize=(5.0, 5.0))
+    ax = fig.add_axes((0.04, 0.25, 0.92, 0.71))
     finite = values[np.isfinite(values)]
     if log:
         finite = finite[finite > 0]
@@ -98,21 +100,21 @@ def histogram_png(values: np.ndarray, norm, title: str = "") -> bytes:
             bins = 36
         ax.hist(finite, bins=bins, histtype="stepfilled", alpha=0.65, color="#d95f0e")
         ax.axvline(1.0, color="#4575b4", lw=1.0, ls="--", label=r"$\chi^2/dof=1$")
-        ax.legend(fontsize=6, frameon=False, loc="upper right")
+        ax.legend(fontsize=9, frameon=False, loc="upper right")
     else:
-        ax.text(0.5, 0.5, "all flagged", ha="center", va="center", fontsize=9, transform=ax.transAxes)
+        ax.text(0.5, 0.5, "all flagged", ha="center", va="center", fontsize=11, transform=ax.transAxes)
 
     ax.set_yticks([])
-    ax.tick_params(axis="x", length=2, width=0.8, labelsize=7)
-    ax.set_xlabel(r"$\chi^2$/dof", fontsize=8)
+    ax.tick_params(axis="x", length=3, width=0.8, labelsize=9)
+    ax.set_xlabel(r"$\chi^2$/dof", fontsize=10, labelpad=2)
     if title:
-        ax.set_title(title, fontsize=8)
+        ax.set_title(title, fontsize=10)
     for spine in ("top", "right", "left"):
         ax.spines[spine].set_visible(False)
 
-    cax = fig.add_axes((0.17, 0.13, 0.78, 0.045))
+    cax = fig.add_axes((0.04, 0.09, 0.92, 0.035))
     fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=CMAP), cax=cax, orientation="horizontal")
-    cax.tick_params(length=2, width=0.8, labelsize=6)
+    cax.tick_params(length=3, width=0.8, labelsize=8)
 
     return _png(fig)
 

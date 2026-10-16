@@ -201,7 +201,10 @@ def test_routes(chi2_zarr):
     client = TestClient(create_app(chi2_zarr["zarr"]))
 
     assert client.get("/healthz").json()["scans"] == 2
-    assert client.get("/").status_code == 200
+    index = client.get("/")
+    assert index.status_code == 200
+    # Fields are listed by FIELD::NAME, keyed by FIELD_ID.
+    assert '<option value="0" title="FIELD_ID 0" selected>testfield</option>' in index.text
 
     heatmap = client.get("/heatmap?field=0&spw=0&scan=1&t=0&f=0&c=XX")
     assert heatmap.status_code == 200
@@ -209,6 +212,8 @@ def test_routes(chi2_zarr):
     assert heatmap.text.count('hx-get="/waterfall') == 64 - 8
     assert heatmap.text.count('class="auto"') == 8
     assert "28 baselines" in heatmap.text
+    # A cell click carries the waterfall settings the user changed.
+    assert heatmap.text.count('hx-include="#waterfall .keep"') == 64 - 8
 
     png = client.get("/histogram.png?field=0&spw=0&scan=1&t=0&f=0&c=XX")
     assert png.headers["content-type"] == "image/png"
@@ -448,12 +453,17 @@ def test_waterfall_controls(chi2_corrected):
     )
     assert "no longer shows" not in panel.text
     assert "waterfall.png?" in panel.text
+    assert 'class="keep"' not in panel.text
 
     png = client.get(base.replace("/waterfall?", "/waterfall.png?"))
     assert png.headers["content-type"] == "image/png"
 
     changed = client.get(base + "&product=V&column=DATA&model=MODEL_DATA&gtable=" + chi2_corrected["gtable"])
     assert "no longer shows" in changed.text
+    # Only the controls moved off the heatmap's setting are carried to the next baseline.
+    assert '<select name="product" class="keep">' in changed.text
+    assert '<select name="model">' in changed.text
+    assert 'name="gtable" class="keep"' not in changed.text
 
     broken = client.get(base + "&gtable=/nowhere/NET")
     assert "gain table" in broken.text

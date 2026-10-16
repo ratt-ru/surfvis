@@ -221,6 +221,21 @@ def baseline_index(ds: xarray.Dataset, name1: str, name2: str) -> int:
 
 
 @lru_cache(maxsize=8)
+def field_names(ms: str) -> dict[int, str]:
+    """``FIELD_ID`` to ``FIELD::NAME``, or an empty dict if the MS cannot be read."""
+    try:
+        import arcae
+
+        fields = arcae.table(f"{ms}::FIELD")
+        try:
+            return {k: str(n) for k, n in enumerate(fields.getcol("NAME"))}
+        finally:
+            fields.close()
+    except Exception:
+        return {}
+
+
+@lru_cache(maxsize=8)
 def _antenna_positions(ms: str) -> dict[str, np.ndarray]:
     import arcae
 

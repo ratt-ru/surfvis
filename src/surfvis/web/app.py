@@ -53,6 +53,7 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
             {
                 "store": store,
                 "ms": ms_path,
+                "field_names": msdata.field_names(ms_path),
                 "field": field,
                 "spw": spw,
                 "scan": scan,
@@ -75,6 +76,7 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
             "_selectors.html",
             {
                 "store": store,
+                "field_names": msdata.field_names(ms_path),
                 "field": field,
                 "spw": spw,
                 "scan": scan,
@@ -135,7 +137,7 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
     ):
         chunk = _chunk(field, spw, scan, t, f, c)
         norm, _, _ = render.make_norm(chunk.chi2_dof, scale)
-        png = render.histogram_png(chunk.chi2_dof, norm, title=f"scan {scan}  t{t} f{f} {c}")
+        png = render.histogram_png(chunk.chi2_dof, norm)
         return Response(png, media_type="image/png")
 
     def _resolve(column: str) -> str:
@@ -201,14 +203,10 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
             gtable=settings["gtable"],
             flagversion=settings["flagversion"],
         )
-        heatmap_settings = (c, _resolve(chunk.rcol), _resolve(chunk.mcol), chunk.gtable, "")
-        current = (
-            settings["product"],
-            settings["column"],
-            settings["model"],
-            settings["gtable"],
-            settings["flagversion"],
-        )
+        defaults = _waterfall_settings(chunk, "", "", None, None, "", "amp")
+        # Controls the user moved off the heatmap's setting. Clicking another
+        # cell sends these along, so a choice survives a change of baseline.
+        keep = {key for key, value in settings.items() if value != defaults[key]}
         return templates.TemplateResponse(
             request,
             "_waterfall.html",
@@ -225,7 +223,8 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
                 "quantities": msdata.QUANTITIES,
                 "s": settings,
                 "chunk": chunk,
-                "differs": current != heatmap_settings,
+                "keep": keep,
+                "differs": bool(keep - {"quantity"}),
                 "problems": problems,
                 "t0": chunk.t0,
                 "tf": chunk.tf,

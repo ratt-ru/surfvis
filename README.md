@@ -242,6 +242,11 @@ If port 8000 is already taken, pick another and keep both sides consistent:
 
 ### Using the interface
 
+**Save as PNG** (top right) saves the whole page, including whatever is
+scrolled out of view, as a PNG at twice screen resolution. The file is named
+after the current selection, e.g.
+`surfvis_J1331+3030_scan1_t0_f0_XX_m009-m051.png`.
+
 A bar across the top of the page runs while anything is loading. The part being
 replaced dims, and plots show a spinner until they arrive; reading a waterfall
 from the MS is the slow part.

@@ -72,7 +72,9 @@ Three layers, and the boundary between them is load-bearing:
 - **`web/`** is the browser: `store.py` (zarr), `msdata.py` (MS via xarray-ms
   and arcae), `render.py` (colours + PNGs), `app.py` (FastAPI), `templates/`
   (htmx partials) and `static/app.js` (selection, hover readout, arrow keys,
-  carried settings, loading states). Dask-free, and read-only for now.
+  carried settings, loading states, Save as PNG). `htmx.min.js` and
+  `html-to-image.js` are vendored, not loaded from a CDN: compute nodes are
+  often offline. Dask-free, and read-only for now.
 - **`utils/products.py` and `utils/gains.py`** are the exception to "utils is
   heavy": numpy/xarray only, shared by `chi2` and `web/` so the heatmap and the
   waterfall form corrected residuals and Stokes products with the same code.

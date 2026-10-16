@@ -150,3 +150,53 @@ async function plotFailed(img) {
   p.textContent = detail;
   wrap.replaceWith(p);
 }
+
+// Save the whole page as a PNG, including what is scrolled out of view, which
+// a screenshot cannot do. html-to-image (vendored) renders the DOM through an
+// SVG foreignObject, so the grid, labels and controls come out as shown.
+function pageName() {
+  const pick = (name) => {
+    const el = document.querySelector(`#selectors select[name="${name}"]`);
+    return el ? el.selectedOptions[0]?.textContent.trim() : "";
+  };
+  const parts = ["surfvis", pick("field"), `scan${pick("scan")}`, `t${pick("t")}`, `f${pick("f")}`, pick("c")];
+  if (selected && document.querySelector("#waterfall .panel")) parts.push(`${selected[0]}-${selected[1]}`);
+  return parts.filter(Boolean).join("_").replace(/[^A-Za-z0-9_.+-]+/g, "") + ".png";
+}
+
+async function savePng(button) {
+  const label = button.textContent;
+  button.disabled = true;
+  button.textContent = "Saving\u2026";
+  try {
+    // The library re-downloads every <img> it embeds; for the waterfall that
+    // would mean reading the MS again. Hand it the already-decoded pixels.
+    for (const img of document.querySelectorAll("img")) {
+      if (!img.complete || !img.naturalWidth || img.src.startsWith("data:")) continue;
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      canvas.getContext("2d").drawImage(img, 0, 0);
+      img.dataset.src = img.src;
+      img.src = canvas.toDataURL("image/png");
+    }
+    const body = document.body;
+    const url = await htmlToImage.toPng(body, {
+      backgroundColor: getComputedStyle(body).backgroundColor,
+      width: body.scrollWidth,
+      height: body.scrollHeight,
+      pixelRatio: 2,
+      skipFonts: true,
+      filter: (node) => !["busy", "tip", "save-png"].includes(node.id),
+    });
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = pageName();
+    a.click();
+  } catch (err) {
+    alert(`Could not save the page: ${err}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = label;
+  }
+}

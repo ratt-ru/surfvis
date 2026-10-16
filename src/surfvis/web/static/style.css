@@ -21,6 +21,13 @@ header {
   padding: 0.7rem 1rem; border-bottom: 1px solid var(--line);
 }
 header h1 { font-size: 1.05rem; margin: 0; letter-spacing: 0.04em; }
+#save-png {
+  margin-left: auto; flex: none;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line);
+  border-radius: 4px; padding: 0.25rem 0.7rem; font: inherit; font-size: 0.8rem; cursor: pointer;
+}
+#save-png:hover:not(:disabled) { border-color: var(--accent); }
+#save-png:disabled { color: var(--muted); cursor: progress; }
 .ms { color: var(--muted); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .controls {

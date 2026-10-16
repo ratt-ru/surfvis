@@ -213,6 +213,9 @@ def test_routes(chi2_zarr):
     assert '<option value="0" title="FIELD_ID 0" selected>testfield</option>' in index.text
     # Static URLs are versioned, so an upgrade cannot pair new HTML with a cached stylesheet.
     assert "/static/style.css?v=" in index.text
+    # Save as PNG renders the page in the browser with the vendored html-to-image.
+    assert 'id="save-png"' in index.text
+    assert client.get("/static/html-to-image.js").status_code == 200
 
     heatmap = client.get("/heatmap?field=0&spw=0&scan=1&t=0&f=0&c=XX")
     assert heatmap.status_code == 200

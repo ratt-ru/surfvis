@@ -3,10 +3,15 @@ type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
 timestamp: 2026-10-16
-last_verified_commit: 3eb66e8
+last_verified_commit: dfee997
 ---
 
 # Wiki changelog
+
+## 2026-10-16 — canvas waterfall widget (verified at `dfee997`)
+
+- **Updated** `web-app.md`: new "Canvas waterfall" section (route, wire format,
+  modules, interactions, `no-cache` static header); loading-feedback bullet.
 
 ## 2026-10-16 — flagging write path (verified at `3eb66e8`)
 

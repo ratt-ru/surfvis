@@ -4,7 +4,7 @@ title: Chi-squared browser
 description: How surfvis serve links surfchi2 output to on-demand baseline waterfalls, the waterfall's correction / Stokes / flag-version controls, and the xarray-ms facts it depends on.
 tags: [web, fastapi, htmx, xarray-ms, zarr]
 timestamp: 2026-10-16
-last_verified_commit: 3eb66e8
+last_verified_commit: dfee997
 ---
 
 # Chi-squared browser
@@ -210,7 +210,7 @@ Three layers, because the slow part is not always an htmx request:
 
 - `#busy`, a bar across the top, is the `hx-indicator` for every htmx request
   (set once on `<body>`, inherited). It also stays lit while any `.plot.loading`
-  exists (`body:has(...)`), since the waterfall PNG is the slow part and its
+  exists (`body:has(...)`), since the waterfall's first block is the slow part and its
   panel is usually below the fold when a cell is clicked.
 - The region a request will replace (`#heatmap`, `#waterfall`, `#selectors`)
   is dimmed between `htmx:beforeRequest` and `htmx:afterRequest`.
@@ -301,3 +301,30 @@ time, channel and antenna -- so the corrections are checked exactly.
 
 Tests skip cleanly without the `[full,web]` extras; `tests/conftest.py` carries
 the `needs_ms` / `needs_web` markers.
+
+## Canvas waterfall
+
+The page no longer shows `/waterfall.png` (the route is kept, unused by the
+page). `templates/_waterfall.html` renders a `.wf` root with a `<canvas>`;
+`app.js` imports `static/wf/widget.mjs` on `htmx:afterSettle` of `#waterfall`
+and calls `mount(root)`.
+
+- **Route:** `GET /waterfall.bin` takes the PNG route's query plus
+  `t0,t1,c0,c1,max_t,max_c,meta`. The plane is reduced to at most
+  `max_t x max_c` cells (`planes.py`); the first request sets `meta=true` and
+  also returns slot times and channel frequencies.
+- **Wire format:** a JSON header (version, nt, nc, window, tstep, cstep, vmin,
+  vmax, quantity, colormap, title, rect) followed by float32 values and uint8
+  flag fractions; decoded by `static/wf/format.mjs`.
+- **Modules** (`static/wf/`, node-tested via `tests/test_js.py`): `format`,
+  `luts`, `colormap` (paint), `view` (View, Latest, niceTicks), `widget`.
+- **Interactions:** wheel zooms about the cursor, shift-drag or middle-drag
+  pans, `0` or Reset view resets, hover reads time, frequency, value and flag
+  percentage. After 150 ms of rest the visible window is refetched at screen
+  resolution; `Latest` discards stale responses. "show flags" repaints locally.
+  Plain left-drag and click are unbound, reserved for flagging polygons.
+  Layers added through `api.addLayer(fn)` draw clipped to the plot area.
+- **Cache:** static files are served `Cache-Control: no-cache`
+  (`RevalidatedStaticFiles`), because imports between ES modules cannot carry
+  the `?v=` digest.
+- Save as PNG captures the canvas too (a canvas is rasterised by html-to-image).

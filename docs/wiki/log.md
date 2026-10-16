@@ -3,10 +3,15 @@ type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
 timestamp: 2026-10-16
-last_verified_commit: dfee997
+last_verified_commit: d4a40a0
 ---
 
 # Wiki changelog
+
+## 2026-10-16 — plane cache and widget fixes (verified at `d4a40a0`)
+
+- **Updated** `web-app.md`: "Plane cache" section (key, memory, colour limits),
+  `wheelFactor`, single first fetch, fetch abort.
 
 ## 2026-10-16 — canvas waterfall widget (verified at `dfee997`)
 

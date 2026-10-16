@@ -4,7 +4,7 @@ title: Chi-squared browser
 description: How surfvis serve links surfchi2 output to on-demand baseline waterfalls, the waterfall's correction / Stokes / flag-version controls, and the xarray-ms facts it depends on.
 tags: [web, fastapi, htmx, xarray-ms, zarr]
 timestamp: 2026-10-16
-last_verified_commit: dfee997
+last_verified_commit: d4a40a0
 ---
 
 # Chi-squared browser
@@ -317,7 +317,7 @@ and calls `mount(root)`.
   vmax, quantity, colormap, title, rect) followed by float32 values and uint8
   flag fractions; decoded by `static/wf/format.mjs`.
 - **Modules** (`static/wf/`, node-tested via `tests/test_js.py`): `format`,
-  `luts`, `colormap` (paint), `view` (View, Latest, niceTicks), `widget`.
+  `luts`, `colormap` (paint), `view` (View, Latest, niceTicks, wheelFactor), `widget`.
 - **Interactions:** wheel zooms about the cursor, shift-drag or middle-drag
   pans, `0` or Reset view resets, hover reads time, frequency, value and flag
   percentage. After 150 ms of rest the visible window is refetched at screen
@@ -328,3 +328,23 @@ and calls `mount(root)`.
   (`RevalidatedStaticFiles`), because imports between ES modules cannot carry
   the `?v=` digest.
 - Save as PNG captures the canvas too (a canvas is rasterised by html-to-image).
+- **Wheel units:** `wheelFactor` normalises `deltaY` by `deltaMode` (Firefox
+  reports lines, not pixels) and clamps each event, so zoom feels alike across
+  browsers. The widget aborts a superseded fetch, skips a refetch when the
+  block on screen was fetched with the same window and bin counts (so the first
+  load makes one request), and drops a drag when pointer capture is lost.
+
+### Plane cache
+
+`msdata.cached_plane` keeps the last four formed baseline planes (an `lru_cache`)
+so zooming and panning re-slice memory instead of re-reading the MS. The key is
+the MS fingerprint (storage mtimes), the gain term's mtime, and the baseline and
+settings (field, spw, scan, antennas, product, column, model, gtable, flag
+version). It is **not** keyed on quantity or on the chunk rectangle: another
+time or frequency bin of the same baseline hits the cache, and the route puts the
+chunk rectangle into the header itself. `invalidate(ms)` clears it (the flagger
+calls it after a write). An entry holds the plane as complex64 and the flags as
+bool, `values` is dropped: about 9 bytes per cell, so 450 x 32768 is ~130 MB and
+four entries ~0.5 GB. Colour limits are cached per quantity on the entry
+(`Waterfall.limits`), so colours do not move on zoom and are not recomputed.
+`planes._binned` skips its padded copy when the window divides evenly.

@@ -182,6 +182,10 @@ the MSv4 view unless `FEED` (validated against ANTENNA1/2), `STATE`, and the
 
 **`--dataout` and `--imagesout` are deleted and recreated** on every `chi2` run.
 
+**The canvas waterfall's plane cache is memory-heavy.** `msdata.cached_plane`
+keeps four planes at ~9 bytes per cell (complex64 + flags), so 450 x 32768 is
+~130 MB each; keep it complex64 and never cache `values`.
+
 **`serve` carries no `@stimela_cab`** and must not. A long-running GUI is not a
 batch task. `generate-cabs` skips undecorated functions, which is what keeps
 `serve.yml` from existing.

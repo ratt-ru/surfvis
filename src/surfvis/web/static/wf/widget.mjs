@@ -7,7 +7,7 @@
 import { decode } from "./format.mjs";
 import { LUTS } from "./luts.mjs";
 import { paint } from "./colormap.mjs";
-import { View, Latest, niceTicks } from "./view.mjs";
+import { View, Latest, niceTicks, wheelFactor } from "./view.mjs";
 
 // CSS pixels around the image: time labels, channel labels, colourbar.
 const MARGIN = { left: 76, right: 78, top: 8, bottom: 40 };
@@ -34,6 +34,8 @@ export async function mount(root) {
   let image = null; // offscreen canvas of block
   let refineTimer = null;
   let drag = null;
+  let controller = null; // aborts the in-flight fetch
+  let blockReq = null; // the request the current block was fetched with
 
   const rect = () => ({
     x: MARGIN.left,
@@ -55,7 +57,9 @@ export async function mount(root) {
 
   async function fetchBlock(params) {
     const id = latest.next();
-    const res = await fetch(`${root.dataset.src}&${new URLSearchParams(params)}`);
+    if (controller) controller.abort();
+    controller = new AbortController();
+    const res = await fetch(`${root.dataset.src}&${new URLSearchParams(params)}`, { signal: controller.signal });
     if (!res.ok) {
       let detail = `HTTP ${res.status}`;
       try {
@@ -64,7 +68,9 @@ export async function mount(root) {
       throw new Error(detail);
     }
     const decoded = decode(await res.arrayBuffer());
-    return latest.accept(id) ? decoded : null;
+    if (!latest.accept(id)) return null;
+    decoded.params = params;
+    return decoded;
   }
 
   function setBlock(decoded) {
@@ -179,16 +185,30 @@ export async function mount(root) {
     refineTimer = setTimeout(refine, REFINE_MS);
   }
 
+  const sameRequest = (a, b) => a && b && ["t0", "t1", "c0", "c1", "max_t", "max_c"].every((k) => a[k] === b[k]);
+
   async function refine() {
+    if (!root.isConnected) {
+      if (controller) controller.abort();
+      return;
+    }
+    const req = view.request(rect(), window.devicePixelRatio || 1);
+    if (sameRequest(req, blockReq)) {
+      // The block on screen already answers this; drop any superseded fetch still in flight.
+      if (controller) controller.abort();
+      plot.classList.remove("refining");
+      return;
+    }
     plot.classList.add("refining");
     try {
-      const decoded = await fetchBlock(view.request(rect(), window.devicePixelRatio || 1));
+      const decoded = await fetchBlock(req);
       if (decoded) {
+        blockReq = req;
         setBlock(decoded);
         draw();
       }
     } catch (err) {
-      readout.textContent = `Could not refine: ${err.message}`;
+      if (err.name !== "AbortError") readout.textContent = `Could not refine: ${err.message}`;
     } finally {
       plot.classList.remove("refining");
     }
@@ -238,7 +258,7 @@ export async function mount(root) {
       if (!view) return;
       e.preventDefault();
       const { t, c } = view.toData(e.offsetX, e.offsetY, rect());
-      view.zoomAt(Math.exp(e.deltaY * 0.0015), t, c);
+      view.zoomAt(wheelFactor(e.deltaY, e.deltaMode), t, c);
       draw();
       scheduleRefine();
     },
@@ -264,6 +284,9 @@ export async function mount(root) {
   });
   canvas.addEventListener("pointerup", () => {
     if (drag) scheduleRefine();
+    drag = null;
+  });
+  canvas.addEventListener("lostpointercapture", () => {
     drag = null;
   });
   canvas.addEventListener("pointerleave", () => {
@@ -300,15 +323,17 @@ export async function mount(root) {
     const dpr = window.devicePixelRatio || 1;
     const r = rect();
     const decoded = await fetchBlock({ meta: "true", max_t: Math.round(r.h * dpr), max_c: Math.round(r.w * dpr) });
-    if (!decoded) return api;
+    if (!decoded || !root.isConnected) return api;
     meta = decoded.header;
     view = new View(meta.ntime, meta.nchan);
+    blockReq = view.request(r, dpr); // the first fetch was this request, for the whole plane
     root.querySelector(".wf-title").textContent = meta.title;
     setBlock(decoded);
     plot.classList.remove("loading");
     draw();
     observer.observe(plot);
   } catch (err) {
+    if (err.name === "AbortError" || !root.isConnected) return api;
     const p = document.createElement("p");
     p.className = "problems";
     p.textContent = err.message;

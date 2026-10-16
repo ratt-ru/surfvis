@@ -30,7 +30,7 @@ EXPECTED = {
     "test_rasterise.py": (6, 0),
     "test_roundtrip.py": (4, 0),
     "test_suite_integrity.py": (3, 0),
-    "test_web.py": (26, 26),
+    "test_web.py": (27, 27),
 }
 
 

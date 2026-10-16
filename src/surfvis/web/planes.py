@@ -35,8 +35,11 @@ def _binned(a: np.ndarray, tstep: int, cstep: int, fill) -> np.ndarray:
     """``(T, C)`` -> ``(nt, nc, tstep * cstep)``, padding the ragged edges with ``fill``."""
     n_rows, n_cols = a.shape
     nt, nc = -(-n_rows // tstep), -(-n_cols // cstep)
-    padded = np.full((nt * tstep, nc * cstep), fill, dtype=a.dtype)
-    padded[:n_rows, :n_cols] = a
+    if (nt * tstep, nc * cstep) == a.shape:
+        padded = a  # divides evenly: no padded copy
+    else:
+        padded = np.full((nt * tstep, nc * cstep), fill, dtype=a.dtype)
+        padded[:n_rows, :n_cols] = a
     return padded.reshape(nt, tstep, nc, cstep).transpose(0, 2, 1, 3).reshape(nt, nc, tstep * cstep)
 
 

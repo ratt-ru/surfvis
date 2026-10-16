@@ -565,3 +565,30 @@ def test_waterfall_bin(chi2_zarr):
     assert client.get(base + "&c0=40").status_code == 400
     assert client.get(base + "&quantity=nope").status_code == 400
     assert client.get(base.replace("RESIDUAL", "NOPE")).status_code == 404
+
+
+@needs_web
+def test_waterfall_bin_reads_the_ms_once_across_bins(chi2_zarr, monkeypatch):
+    """Clicking another time bin of the same baseline reuses the cached plane."""
+    pytest.importorskip("httpx2")
+    from fastapi.testclient import TestClient
+
+    from surfvis.web import msdata
+    from surfvis.web.app import create_app
+    from surfvis.web.planes import decode
+
+    msdata.invalidate(chi2_zarr["ms"]["path"])
+    calls = []
+    real = msdata.waterfall
+    monkeypatch.setattr(msdata, "waterfall", lambda *a, **k: calls.append(1) or real(*a, **k))
+    client = TestClient(create_app(chi2_zarr["zarr"]))
+    base = "/waterfall.bin?field=0&spw=0&scan=1&f=0&c=XX&p=1&q=5&column=RESIDUAL"
+
+    first, _, _ = decode(client.get(base + "&t=0").content)
+    second, _, _ = decode(client.get(base + "&t=1").content)
+    assert first["rect"] != second["rect"]
+    assert len(calls) == 1
+    cached = msdata.cached_plane(
+        chi2_zarr["ms"]["path"], 0, 0, 1, *chi2_zarr["ms"]["antenna_names"][1:6:4], "XX", "RESIDUAL"
+    )
+    assert cached.plane.dtype == np.complex64 and cached.values is None

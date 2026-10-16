@@ -14,7 +14,7 @@ surfchi2 works on plottable.
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 
 import numpy as np
@@ -88,6 +88,8 @@ class Waterfall:
     # frequencies in Hz; None where not known.
     plane: np.ndarray | None = None
     freqs: np.ndarray | None = None
+    # Colour limits per quantity, filled in by the canvas route on a cached plane.
+    limits: dict = field(default_factory=dict, compare=False, repr=False)
 
 
 @lru_cache(maxsize=8)
@@ -593,13 +595,14 @@ def cached_plane(
     model: str = "",
     gtable: str = "",
     flagversion: str = "",
-    rect: tuple[int, int, int, int] | None = None,
 ) -> Waterfall:
     """One baseline's formed complex plane, cached so zooming does not re-read the MS.
 
     The key includes the MS's on-disk fingerprint and the gain term's mtime,
     so a rewritten MS or a re-solved gain table is read afresh. ``quantity``
-    is not part of the key: use ``plane``, not ``values``.
+    and the chunk rectangle are not part of the key. The entry is slimmed to
+    save memory: ``plane`` is complex64 and ``values`` is None, so use
+    ``plane``; ``rect`` is None.
     """
     return _cached_plane(
         ms,
@@ -613,7 +616,6 @@ def cached_plane(
         model,
         gtable,
         flagversion,
-        rect,
         _fingerprint(ms),
         _gtable_stamp(gtable),
     )
@@ -621,10 +623,10 @@ def cached_plane(
 
 @lru_cache(maxsize=4)
 def _cached_plane(
-    ms, field, spw, scan, name1, name2, product, column, model, gtable, flagversion, rect, fingerprint, gstamp
+    ms, field, spw, scan, name1, name2, product, column, model, gtable, flagversion, fingerprint, gstamp
 ) -> Waterfall:
     # fingerprint and gstamp only key the cache.
-    return waterfall(
+    wf = waterfall(
         ms,
         field,
         spw,
@@ -634,11 +636,12 @@ def _cached_plane(
         product,
         column,
         quantity="amp",
-        rect=rect,
+        rect=None,
         model=model,
         gtable=gtable,
         flagversion=flagversion,
     )
+    return replace(wf, plane=wf.plane.astype(np.complex64), values=None)
 
 
 def _gtable_stamp(gtable: str) -> int | None:

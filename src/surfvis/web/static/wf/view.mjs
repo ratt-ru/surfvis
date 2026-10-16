@@ -80,6 +80,14 @@ export class View {
   }
 }
 
+// Zoom factor for one wheel event. Browsers report deltaY in pixels (0), lines
+// (1, Firefox) or pages (2); normalise to pixels and clamp so one event cannot
+// jump the zoom. Negative deltaY zooms in (factor < 1).
+export function wheelFactor(deltaY, deltaMode = 0, perPixel = 0.0015, maxPixels = 300) {
+  const px = deltaY * (deltaMode === 1 ? 40 : deltaMode === 2 ? 800 : 1);
+  return Math.exp(Math.min(Math.max(px, -maxPixels), maxPixels) * perPixel);
+}
+
 // Responses can arrive out of order while zooming: draw only the newest.
 export class Latest {
   constructor() {

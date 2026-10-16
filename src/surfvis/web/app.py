@@ -356,7 +356,6 @@ def create_app(data: str | Path, ms: str | Path | None = None, allow_flagging: b
                 scan,
                 names[p],
                 names[q],
-                rect=(chunk.t0, chunk.tf, chunk.chan0, chunk.chanf),
                 **settings,
             )
         except (KeyError, IndexError, ValueError, FileNotFoundError) as exc:
@@ -371,7 +370,9 @@ def create_app(data: str | Path, ms: str | Path | None = None, allow_flagging: b
         block = planes.reduce_block(
             wf.plane, wf.flags, quantity, t0, t1, c0, c1, min(max(max_t, 1), cap), min(max(max_c, 1), cap)
         )
-        vmin, vmax = planes.colour_limits(wf.plane, wf.flags, quantity)
+        if quantity not in wf.limits:  # cached with the plane; colours do not move on zoom
+            wf.limits[quantity] = planes.colour_limits(wf.plane, wf.flags, quantity)
+        vmin, vmax = wf.limits[quantity]
         length = f" ({wf.length:.0f} m)" if wf.length is not None else ""
         header = {
             "t0": t0,
@@ -387,7 +388,7 @@ def create_app(data: str | Path, ms: str | Path | None = None, allow_flagging: b
             "quantity": quantity,
             "colormap": "twilight" if quantity == "phase" else "viridis",
             "title": f"{wf.antenna1}-{wf.antenna2}{length}   scan {wf.scan}   {wf.column}   {quantity}   {wf.product}",
-            "rect": list(wf.rect) if wf.rect is not None else None,
+            "rect": [chunk.t0, chunk.tf, chunk.chan0, chunk.chanf],
         }
         if meta:
             header["times"] = [float(x) for x in wf.times] if wf.times is not None else None

@@ -72,3 +72,17 @@ test("niceTicks steps by 1, 2 or 5 times a power of ten", () => {
   assert.deepEqual(niceTicks(-0.5, 3.5, 6, true), [0, 1, 2, 3]);
   assert.deepEqual(niceTicks(0.3, 0.9, 3), [0.5]);
 });
+
+import { wheelFactor } from "../../src/surfvis/web/static/wf/view.mjs";
+
+test("wheelFactor: sign, units and clamping", () => {
+  assert.ok(wheelFactor(100, 0) > 1);
+  assert.ok(wheelFactor(-100, 0) < 1);
+  close(wheelFactor(100, 0), Math.exp(100 * 0.0015));
+  // Firefox line mode: 3 lines per notch is of the order of 120 px.
+  close(wheelFactor(3, 1), Math.exp(120 * 0.0015));
+  close(wheelFactor(1, 2), Math.exp(300 * 0.0015)); // page mode, clamped
+  close(wheelFactor(5000, 0), Math.exp(300 * 0.0015));
+  close(wheelFactor(-5000, 0), Math.exp(-300 * 0.0015));
+  close(wheelFactor(0, 0), 1);
+});

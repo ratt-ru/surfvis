@@ -3,10 +3,15 @@ type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
 timestamp: 2026-10-16
-last_verified_commit: 461673f
+last_verified_commit: 1950c3f
 ---
 
 # Wiki changelog
+
+## 2026-10-16 — static cache busting (verified at `1950c3f`)
+
+- **Updated** `web-app.md`: static URLs are versioned; the busy bar also
+  covers PNG loads.
 
 ## 2026-10-16 — browser usability (verified at `461673f`)
 

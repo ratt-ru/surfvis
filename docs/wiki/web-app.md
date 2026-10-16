@@ -4,7 +4,7 @@ title: Chi-squared browser
 description: How surfvis serve links surfchi2 output to on-demand baseline waterfalls, the waterfall's correction / Stokes / flag-version controls, and the xarray-ms facts it depends on.
 tags: [web, fastapi, htmx, xarray-ms, zarr]
 timestamp: 2026-10-16
-last_verified_commit: 461673f
+last_verified_commit: 1950c3f
 ---
 
 # Chi-squared browser
@@ -163,12 +163,19 @@ The waterfall title carries the baseline length: the distance between the two
 Three layers, because the slow part is not always an htmx request:
 
 - `#busy`, a bar across the top, is the `hx-indicator` for every htmx request
-  (set once on `<body>`, inherited).
+  (set once on `<body>`, inherited). It also stays lit while any `.plot.loading`
+  exists (`body:has(...)`), since the waterfall PNG is the slow part and its
+  panel is usually below the fold when a cell is clicked.
 - The region a request will replace (`#heatmap`, `#waterfall`, `#selectors`)
   is dimmed between `htmx:beforeRequest` and `htmx:afterRequest`.
 - The PNGs are fetched by the browser, not htmx, and the waterfall PNG is where
   the MS is actually read. Each sits in a `.plot.loading` wrapper showing a
   spinner until the `<img>`'s `onload`.
+
+Static URLs carry `?v=<digest of the static files>`. `StaticFiles` sends no
+`Cache-Control`, so browsers cached the stylesheet heuristically and served
+the old one with new HTML after an upgrade: no indicators, an unsized
+histogram.
 
 The clicked cell keeps an outline (`.selected`, matched by `data-pq`) across
 heatmap re-renders.

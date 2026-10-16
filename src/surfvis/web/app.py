@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from surfvis.utils import products as products_mod
-from surfvis.web import msdata, render
+from surfvis.web import msdata, planes, render
 from surfvis.web.flagging import Flagger
 from surfvis.web.store import Chi2Store, Selection
 
@@ -303,6 +303,87 @@ def create_app(data: str | Path, ms: str | Path | None = None, allow_flagging: b
         except (KeyError, ValueError, FileNotFoundError) as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         return Response(render.waterfall_png(wf), media_type="image/png")
+
+    @app.get("/waterfall.bin")
+    def waterfall_bin(
+        field: int = Query(...),
+        spw: int = Query(...),
+        scan: int = Query(...),
+        t: int = Query(...),
+        f: int = Query(...),
+        c: str = Query(...),
+        p: int = Query(...),
+        q: int = Query(...),
+        product: str = Query(""),
+        column: str = Query(""),
+        model: str | None = Query(None),
+        gtable: str | None = Query(None),
+        flagversion: str = Query(""),
+        quantity: str = Query("amp"),
+        t0: int = Query(0),
+        t1: int | None = Query(None),
+        c0: int = Query(0),
+        c1: int | None = Query(None),
+        max_t: int = Query(1024),
+        max_c: int = Query(1024),
+        meta: bool = Query(False),
+    ):
+        """A window of one baseline's waterfall, reduced to at most max_t x max_c bins, for the canvas."""
+        if quantity not in msdata.QUANTITIES:
+            raise HTTPException(status_code=400, detail=f"quantity must be one of {msdata.QUANTITIES}")
+        chunk = _chunk(field, spw, scan, t, f, c)
+        names = chunk.antenna_names
+        settings = _waterfall_settings(chunk, product, column, model, gtable, flagversion, quantity)
+        settings.pop("quantity")
+        try:
+            wf = msdata.cached_plane(
+                ms_path,
+                field,
+                spw,
+                scan,
+                names[p],
+                names[q],
+                rect=(chunk.t0, chunk.tf, chunk.chan0, chunk.chanf),
+                **settings,
+            )
+        except (KeyError, IndexError, ValueError, FileNotFoundError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        ntime, nchan = wf.plane.shape
+        t0, t1 = max(t0, 0), min(ntime if t1 is None else t1, ntime)
+        c0, c1 = max(c0, 0), min(nchan if c1 is None else c1, nchan)
+        if t0 >= t1 or c0 >= c1:
+            raise HTTPException(status_code=400, detail=f"Empty window: slots {t0}-{t1}, channels {c0}-{c1}")
+        cap = planes.MAX_BINS
+        block = planes.reduce_block(
+            wf.plane, wf.flags, quantity, t0, t1, c0, c1, min(max(max_t, 1), cap), min(max(max_c, 1), cap)
+        )
+        vmin, vmax = planes.colour_limits(wf.plane, wf.flags, quantity)
+        length = f" ({wf.length:.0f} m)" if wf.length is not None else ""
+        header = {
+            "t0": t0,
+            "t1": t1,
+            "c0": c0,
+            "c1": c1,
+            "tstep": block.tstep,
+            "cstep": block.cstep,
+            "ntime": ntime,
+            "nchan": nchan,
+            "vmin": vmin,
+            "vmax": vmax,
+            "quantity": quantity,
+            "colormap": "twilight" if quantity == "phase" else "viridis",
+            "title": f"{wf.antenna1}-{wf.antenna2}{length}   scan {wf.scan}   {wf.column}   {quantity}   {wf.product}",
+            "rect": list(wf.rect) if wf.rect is not None else None,
+        }
+        if meta:
+            header["times"] = [float(x) for x in wf.times] if wf.times is not None else None
+            header["freqs"] = [float(x) for x in wf.freqs] if wf.freqs is not None else None
+        return Response(
+            planes.encode(header, block),
+            media_type="application/octet-stream",
+            headers={"Cache-Control": "no-store"},
+        )
 
     flagger = Flagger(ms_path) if allow_flagging else None
 

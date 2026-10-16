@@ -3,10 +3,15 @@ type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
 timestamp: 2026-10-16
-last_verified_commit: 366256a
+last_verified_commit: 1ab4f7c
 ---
 
 # Wiki changelog
+
+## 2026-10-16 — Save as PNG (verified at `1ab4f7c`)
+
+- **Updated** `web-app.md`: in-browser page capture with vendored
+  html-to-image, and why loaded images are passed as data URLs.
 
 ## 2026-10-16 — antenna labels and tooltip (verified at `366256a`)
 

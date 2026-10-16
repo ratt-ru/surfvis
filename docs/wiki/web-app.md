@@ -4,7 +4,7 @@ title: Chi-squared browser
 description: How surfvis serve links surfchi2 output to on-demand baseline waterfalls, the waterfall's correction / Stokes / flag-version controls, and the xarray-ms facts it depends on.
 tags: [web, fastapi, htmx, xarray-ms, zarr]
 timestamp: 2026-10-16
-last_verified_commit: 366256a
+last_verified_commit: 1ab4f7c
 ---
 
 # Chi-squared browser
@@ -190,6 +190,15 @@ While an htmx request is in flight, `#heatmap` and `#waterfall` show a spinner
 over their dimmed content (the children are dimmed, not the region, so the
 spinner stays opaque). Without it, the first click showed nothing in the
 waterfall area: the per-PNG spinner only exists once a panel has rendered.
+
+**Save as PNG** renders `<body>` in the browser with `static/html-to-image.js`
+(html-to-image 1.11.11, MIT, vendored like htmx so a node without internet
+still works). It goes through an SVG `foreignObject`, so the page comes out as
+shown, scrolled-off parts included, at `pixelRatio: 2`. The library re-fetches
+every `<img>` it embeds; for the waterfall that would mean reading the MS
+again, so `savePng` first swaps each loaded image's `src` for a data URL of its
+decoded pixels (the original is kept in `data-src`). Printing is no substitute:
+browsers drop background colours by default, and every grid cell is one.
 
 The histogram's axis covers the data; the χ²/dof = 1 reference is drawn only
 when it falls inside, since forcing it in left most decades empty on

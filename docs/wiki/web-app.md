@@ -4,7 +4,7 @@ title: Chi-squared browser
 description: How surfvis serve links surfchi2 output to on-demand baseline waterfalls, the waterfall's correction / Stokes / flag-version controls, and the xarray-ms facts it depends on.
 tags: [web, fastapi, htmx, xarray-ms, zarr]
 timestamp: 2026-10-16
-last_verified_commit: 3cd34f5
+last_verified_commit: 366256a
 ---
 
 # Chi-squared browser
@@ -168,7 +168,10 @@ The heatmap ships one JSON blob (`#grid-data`: antenna names, the χ²/dof
 matrix, antenna positions) rather than attributes on every cell. `app.js`
 reads it for:
 
-- **the hover readout** under the grid: names, χ²/dof, baseline length;
+- **the hover tooltip** at the cursor, mirrored in the readout under the grid:
+  names with antenna numbers (the grid index is the `ANTENNA` row, since
+  `chi2` records every antenna), χ²/dof, baseline length. A custom element,
+  not `title=`, which shows only after a delay;
 - **arrow-key navigation**: up/down change antenna1, left/right antenna2,
   skipping the diagonal;
 - **following the selection.** The selected baseline is held by antenna
@@ -177,6 +180,16 @@ reads it for:
   same baseline is re-fetched there, with the carried settings. This hooks
   `htmx:afterSettle`, not `afterSwap`: htmx has not wired the new cells' `hx-get`
   at `afterSwap`, so a click there does nothing.
+
+Antenna names label the grid: slanted at 60° along the top, horizontal down the
+side. They sit in a gutter and band around the square (`.grid-frame`), sized to
+the cell pitch with container query units (`100cqw / --n`); the histogram pads
+by the same amounts, on its right, so the two squares stay equal.
+
+While an htmx request is in flight, `#heatmap` and `#waterfall` show a spinner
+over their dimmed content (the children are dimmed, not the region, so the
+spinner stays opaque). Without it, the first click showed nothing in the
+waterfall area: the per-PNG spinner only exists once a panel has rendered.
 
 The histogram's axis covers the data; the χ²/dof = 1 reference is drawn only
 when it falls inside, since forcing it in left most decades empty on

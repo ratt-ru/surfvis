@@ -3,10 +3,15 @@ type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
 timestamp: 2026-10-16
-last_verified_commit: a811509
+last_verified_commit: 366256a
 ---
 
 # Wiki changelog
+
+## 2026-10-16 — antenna labels and tooltip (verified at `366256a`)
+
+- **Updated** `web-app.md`: slanted antenna labels around the grid, a cursor
+  tooltip with antenna numbers, and a region spinner for the first click.
 
 ## 2026-10-16 — README and agent files for PR #17 (verified at `a811509`)
 

@@ -3,8 +3,8 @@ type: reference
 title: Chi-squared browser
 description: How surfvis serve links surfchi2 output to on-demand baseline waterfalls, the waterfall's correction / Stokes / flag-version controls, and the xarray-ms facts it depends on.
 tags: [web, fastapi, htmx, xarray-ms, zarr]
-timestamp: 2026-10-15
-last_verified_commit: fb5c6ae
+timestamp: 2026-10-16
+last_verified_commit: 461673f
 ---
 
 # Chi-squared browser
@@ -132,7 +132,13 @@ it reaches the menus, or the column would be listed twice.
   Only listed names are accepted, which also keeps the name from being a path.
 - **Problems are reported in the panel**, not as a broken image: the
   `/waterfall` route runs `msdata.check()` (columns exist, product formable,
-  gains load and align, version exists) before emitting the `<img>`.
+  gains load and align, version exists) before emitting the `<img>`. If the
+  PNG still fails, the page fetches it again and shows the route's `detail`.
+- **Choices survive a change of baseline.** The route marks each control whose
+  value differs from the heatmap's default with `class="keep"`, and every grid
+  cell carries `hx-include="#waterfall .keep"`. Only *changed* controls are
+  carried, so a product left at its default follows the heatmap's product
+  when that changes, while an explicit choice sticks.
 
 ## The grid
 
@@ -141,9 +147,31 @@ counts the upper triangle. Diagonal cells are autocorrelations, which `chi2`
 does not measure: they carry no `hx-get`, since the waterfall route would
 answer them with a 404 that renders as a broken image.
 
+Fields are listed by `FIELD::NAME` (`msdata.field_names`, arcae), with the
+`FIELD_ID` as the option value; the zarr stays keyed by ID. If the MS cannot be
+read the menu falls back to IDs.
+
+The grid and the histogram sit in two equal columns of one CSS grid, and the
+histogram PNG is square, so the two render at the same size.
+
 The waterfall title carries the baseline length: the distance between the two
 `ANTENNA::POSITION` rows (ITRF metres), read once per MS with arcae
 (`msdata.baseline_length`).
+
+## Loading feedback
+
+Three layers, because the slow part is not always an htmx request:
+
+- `#busy`, a bar across the top, is the `hx-indicator` for every htmx request
+  (set once on `<body>`, inherited).
+- The region a request will replace (`#heatmap`, `#waterfall`, `#selectors`)
+  is dimmed between `htmx:beforeRequest` and `htmx:afterRequest`.
+- The PNGs are fetched by the browser, not htmx, and the waterfall PNG is where
+  the MS is actually read. Each sits in a `.plot.loading` wrapper showing a
+  spinner until the `<img>`'s `onload`.
+
+The clicked cell keeps an outline (`.selected`, matched by `data-pq`) across
+heatmap re-renders.
 
 ## Colour scaling
 

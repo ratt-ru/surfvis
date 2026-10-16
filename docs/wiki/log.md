@@ -2,11 +2,17 @@
 type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
-timestamp: 2026-10-15
-last_verified_commit: fb5c6ae
+timestamp: 2026-10-16
+last_verified_commit: 461673f
 ---
 
 # Wiki changelog
+
+## 2026-10-16 — browser usability (verified at `461673f`)
+
+- **Updated** `web-app.md`: fields listed by name; loading feedback (request
+  bar, dimmed targets, PNG spinners); waterfall controls changed from the
+  heatmap's defaults persist across baselines; histogram sized to the grid.
 
 ## 2026-10-15 — first run on real data (verified at `fb5c6ae`)
 

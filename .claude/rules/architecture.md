@@ -15,6 +15,11 @@ surfvis/
 │   ├── core/                  # Real implementations. Heavy deps live here.
 │   │   ├── __init__.py
 │   │   └── chi2.py            # Mirrors cli/chi2.py — same function name, no decorators
+│   ├── utils/                 # Heavy helpers for core/; products.py and gains.py are shared with web/
+│   ├── web/                   # `surfvis serve`: FastAPI + htmx. No cab, by design.
+│   │   ├── app.py, store.py, msdata.py, render.py
+│   │   ├── templates/         # htmx partials
+│   │   └── static/            # style.css, app.js, htmx.min.js (served with ?v=<digest>)
 │   └── cabs/                  # AUTO-GENERATED Stimela YAMLs. Do NOT hand-edit.
 │       ├── __init__.py
 │       └── chi2.yml
@@ -38,6 +43,7 @@ surfvis/
 |---|---|---|
 | `cli/` | Thin Typer wrappers with `@stimela_cab` (and optional `@stimela_output`). One file per command. **Imports from `core/` must be lazy** (inside the function body). | Heavy imports at module top. Business logic. NumPy / pandas / domain libs. |
 | `core/` | The actual implementation. Type-hinted function with the same name as the CLI wrapper, but **no Typer / hip-cargo decorators**. Free to import anything. | Typer. `@stimela_cab`. UI concerns. `typer.Exit(...)`. |
+| `web/` | The browser behind `surfvis serve`, imported only by `cli/serve.py` (lazily). Reads the `chi2` zarr and the MS; never writes. | Dask. `@stimela_cab`. A write path to the MS without the safeguards in issue #16. |
 | `cabs/` | Generated `<command>.yml` files. Committed to source control. Loaded by Stimela. | Anything you wrote by hand. Drift from `cli/*.py`. |
 
 ### Adding a new command

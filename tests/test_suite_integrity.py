@@ -1,9 +1,9 @@
 """Guards against a silently emptied suite.
 
-Everything touching a Measurement Set needs the ``[full]`` extras. Without
-them ``test_commands.py`` skips at *import*, which pytest reports as a single
-skip for the whole module -- a lightweight run says "10 passed, 1 skipped",
-not the 5 tests that did not run. CI installs the lightweight package by
+Everything touching a Measurement Set needs the ``[full,web]`` extras. Without
+them the heavy modules skip at *import*, which pytest reports as a single skip
+per module -- a lightweight run says "10 passed, 2 skipped", not the 17 tests
+that did not run. CI installs the lightweight package by
 design, so a green CI run proves less than it looks, and tests could be
 deleted or quietly defanged without anything noticing.
 
@@ -17,14 +17,16 @@ import ast
 from pathlib import Path
 
 TESTS_DIR = Path(__file__).parent
-MARKERS = {"needs_ms"}
+MARKERS = {"needs_ms", "needs_web"}
 
 # module -> (total test functions, of which need a Measurement Set)
 EXPECTED = {
     "test_commands.py": (5, 5),
     "test_install.py": (2, 0),
+    "test_products.py": (7, 0),
     "test_roundtrip.py": (4, 0),
     "test_suite_integrity.py": (3, 0),
+    "test_web.py": (24, 24),
 }
 
 
@@ -65,4 +67,4 @@ def test_tests_needing_a_measurement_set_are_marked():
         if heavy == 0:
             continue
         unmarked = [f.name for f in _tests_in(TESTS_DIR / name) if not _is_marked(f)]
-        assert not unmarked, f"{name}: needs a needs_ms marker: {unmarked}"
+        assert not unmarked, f"{name}: needs a needs_ms/needs_web marker: {unmarked}"

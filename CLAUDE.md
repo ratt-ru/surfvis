@@ -11,8 +11,9 @@ app, several commands:
 |---|---|---|
 | `surfvis summary` | `core/summary.py` | Print the FIELD / SPECTRAL_WINDOW / ANTENNA tables. |
 | `surfvis surf` | `core/surf.py` | One time/frequency PNG per baseline. |
-| `surfvis chi2` | `core/chi2.py` | Per-(time, freq, corr) chi-squared images plus a per-scan combination. |
+| `surfvis chi2` | `core/chi2.py` | Per-(time, freq, product) chi-squared images, a per-scan combination, and the zarr the browser reads. Optionally forms the residual on the fly (`--mcol`, `--gtable`) and Stokes products (`--stokes`). |
 | `surfvis flag-chi2` | `core/flag_chi2.py` | Flag visibilities whose chi-squared exceeds a threshold, in place. |
+| `surfvis serve` | `web/` | FastAPI + htmx browser over `chi2 --dataout`. Not a cab, deliberately. |
 
 This is a [hip-cargo](https://github.com/landmanbester/hip-cargo) package: CLI
 commands are decorated so Stimela cab definitions are generated from the CLI
@@ -32,7 +33,7 @@ uv run pytest tests/test_roundtrip.py::test_roundtrip_chi2 -v   # one test
 uv run hip-cargo generate-cabs --module 'src/surfvis/cli/*.py' --output-dir src/surfvis/cabs
 ```
 
-The heavy stack (python-casacore, dask-ms, numba) is **not** in the dev
+The heavy stack (arcae, python-casacore, dask-ms, numba, xarray-ms) is **not** in the dev
 environment, so anything touching a Measurement Set skips locally. That is only
 true of a clean venv — the extras drift in easily, and then the MS tests start
 running locally and the suite stops resembling CI. `uv sync --group dev --group
@@ -44,11 +45,11 @@ Run the MS tests in the container:
 docker build -t surfvis:local .
 docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/src -w /src \
   surfvis:local bash -c \
-  "pip install --quiet --target /tmp/t pytest; \
+  "pip install --quiet --target /tmp/t pytest httpx2; \
    PYTHONPATH=/tmp/t:/src/src:/src /tmp/t/bin/pytest tests/ -q -W ignore"
 ```
 
-That is the only way to run the full suite (14 tests). **CI does not run them** —
+That is the only way to run the full suite (49 tests). **CI does not run them** —
 `.github/workflows/ci.yml` installs the lightweight package only, deliberately,
 since python-casacore and numba make CI slow and brittle. Verify locally.
 
@@ -68,9 +69,25 @@ Three layers, and the boundary between them is load-bearing:
 - **`cabs/`** is generated. Never edit by hand.
 - **`utils/`** is heavy too (`chisq.py` numba kernels, `plotting.py` matplotlib)
   and is imported only from `core/`.
+- **`web/`** is the browser: `store.py` (zarr), `msdata.py` (MS via xarray-ms
+  and arcae), `render.py` (colours + PNGs), `app.py` (FastAPI), `templates/`
+  (htmx partials) and `static/app.js` (selection, hover readout, arrow keys,
+  carried settings, loading states, Save as PNG). `htmx.min.js` and
+  `html-to-image.js` are vendored, not loaded from a CDN: compute nodes are
+  often offline. Dask-free, and read-only for now.
+- **`utils/products.py` and `utils/gains.py`** are the exception to "utils is
+  heavy": numpy/xarray only, shared by `chi2` and `web/` so the heatmap and the
+  waterfall form corrected residuals and Stokes products with the same code.
 
 `pip install surfvis` gets the CLI and cabs only; `[full]` adds the science
-stack. The Dockerfile installs `[full]`.
+stack, `[web]` the browser. The Dockerfile installs `[full,web]`.
+
+Data flow for the browser: `chi2 --dataout` writes χ² and counts per
+`(time bin, freq bin, product, antenna, antenna)`, one zarr group per
+`(field, spw, scan)`. `serve` reads that for the heatmap and only opens the MS
+when a waterfall is requested. The waterfall's model / gain table / flag
+version / product controls recompute the waterfall only; they default to how
+`chi2` formed the heatmap, and the panel says when they no longer match.
 
 ## Sharp edges
 
@@ -119,17 +136,76 @@ with live threads deadlocks the children — the parent hangs in `as_completed`
 forever, with no output. The failure is load-dependent, so it presents as an
 intermittent hang.
 
+**MSv4 renames columns; resolve, do not hardcode.** `DATA` is exposed as
+`VISIBILITY`, `WEIGHT_SPECTRUM` as `WEIGHT`. Read them from
+`attrs["data_groups"][group]`, as `pfb-imaging`'s `core/imager.py` does.
+`data_groups` is attached by `open_datatree`, **not** `open_dataset`. Columns
+outside the MSv2 standard (`RESIDUAL`) are not renamed, and neither are
+`CORRECTED_DATA` and `MODEL_DATA`: xarray-ms keeps them as secondary variables
+under their own names. Mapping `CORRECTED_DATA` to `VISIBILITY` (as
+`DataGroup.resolve` once did) silently plots `DATA`.
+
+**xarray-ms decodes TIME to unix seconds.** Gain tables and flag versions are
+keyed on the raw MJD-second `TIME`, so `msdata.ms_times()` adds the offset back
+before matching anything against them.
+
+**xarray-ms's default partition schema is wrong for us.** It omits `FIELD_ID`
+and `SCAN_NUMBER`. Use `("FIELD_ID", "DATA_DESC_ID", "SCAN_NUMBER")` — it
+matches both pfb-imaging and surfchi2's grouping, so one partition is one
+(field, spw, scan). xarray-ms also fills gaps in its regular (time, baseline)
+grid with NaN; treat those as flagged.
+
+**The zarr's `product` axis holds labels** (`XX`, `YY`, `I`, `V`), resolved
+from `POLARIZATION::CORR_TYPE`, not offsets into `--use-corrs`. Each product's
+slice is computed from that product alone; surfchi2 used to give every
+correlation's task all of `--use-corrs`, so the per-correlation images were
+identical.
+
+**Diagonal gains do not change chi-squared.** With weights propagated exactly,
+`|inv(g_p) r inv(g_q)*|^2 w |g_p|^2 |g_q|^2 = |r|^2 w`. `--gtable` matters for
+the waterfall (what you *see*), for Stokes products, and for forming the
+residual from `DATA` and `MODEL_DATA`; a test pins the identity. radiomesh's
+`WEIGHT_*` expressions are imaging weights (`w00 + w11` for Stokes I), not
+inverse variances, which is why `utils/products.py` does not use them.
+
+**Gains apply on-grid only.** Each gain axis must match the data's times and
+channels or have length one. Off-grid solutions raise rather than being
+interpolated.
+
+**Colour scales default to log.** χ²/dof spans orders of magnitude; on a linear
+scale one bad baseline renders every other cell black. The histogram bins follow
+the same scale for the same reason.
+
+**A synthetic MS needs more than the main table.** xarray-ms refuses to build
+the MSv4 view unless `FEED` (validated against ANTENNA1/2), `STATE`, and the
+`FIELD` direction columns are populated. `tests/fixtures/ms.py` does this.
+
 **`--dataout` and `--imagesout` are deleted and recreated** on every `chi2` run.
-`--dataout` is currently vestigial: the directory is removed and nothing is
-written to it. Implementing it is the subject of the `serve-ui` branch.
 
-**The fixture MS populates more subtables than casacore needs.** `FEED`, `STATE`
-and the `FIELD` direction columns are there because an MSv4 reader refuses to
-build its view without them. Keep them when editing the fixture.
+**`serve` carries no `@stimela_cab`** and must not. A long-running GUI is not a
+batch task. `generate-cabs` skips undecorated functions, which is what keeps
+`serve.yml` from existing.
 
-**A green test run proves less than it looks.** The heavy module skips at
-*import*, so pytest reports one skip for the whole file: a lightweight run says
-"9 passed, 1 skipped" while 5 tests did not run.
+**Python 3.10 is CLI-plus-container only.** Every `[full]`/`[web]` dependency
+carries a `python_version >= '3.11'` marker, so on 3.10 the core imports fail
+and the CLI falls back to the container (`python:3.11-slim`). Native execution
+and `serve` need 3.11+.
+
+**The xarray-ms/arcae pins point down, deliberately.** Write support (needed to
+move `flag-chi2` onto `to_msv2`) is on the `0.4.0a*` line, which is cut from
+later commits than `0.5.x`; `0.5.x` has none. Hence `xarray-ms>=0.4.0a12,<0.5.0`,
+`arcae>=0.4.0a14,<0.5.0` and `prerelease = "allow"`, as in pfb-imaging. Never
+raise the ceilings. Allowing prereleases also resolves dask-ms to `0.3.0a1`
+and zarr to 3; the suite passes on both.
+
+**New table reads go through arcae, not python-casacore.** surfvis is moving
+to arcae + xarray-ms (issue #11). Two arcae quirks: boolean columns come back
+as `uint8`, and `getcol(index=...)` rejects read-only row arrays -- copy
+indices that came out of another `getcol`.
+
+**A green test run proves less than it looks.** The heavy modules skip at
+*import*, so pytest reports one skip per module: a lightweight run says
+"9 passed, 3 skipped" while 35 tests did not run.
 `tests/test_suite_integrity.py` pins the per-module test counts statically so a
 deletion fails loudly; update those counts deliberately when adding or removing
 a test.
@@ -140,13 +216,25 @@ a test.
 fix changes generated CLI source, so every `cli/*.py` here will need
 regenerating with it.
 
+**Browser JS hooks `htmx:afterSettle`, not `afterSwap`,** to act on new
+content. At `afterSwap` htmx has not yet wired the new cells' `hx-get`, so a
+programmatic `click()` does nothing. Static URLs carry `?v=<digest>` because
+`StaticFiles` sends no `Cache-Control`: without it a browser paired new HTML
+with an old stylesheet after an upgrade. The heatmap ships its per-cell data as
+one JSON blob (`#grid-data`), not as attributes on 4000 cells.
+
 ## Direction of travel
 
 The project is **moving away from Dask and distributed**. `core/chi2.py` and
-`core/flag_chi2.py` still use dask-ms + dask arrays. Before writing new parallel
+`core/flag_chi2.py` still use dask-ms + dask arrays; the web layer already does
+not. Before writing new parallel
 or kernel code, consult `rarg-ray-patterns` (Ray actor autoscaling,
 `wrap_future` bridging `ObjectRef` to asyncio) and `rarg-numba-patterns` (atomic
-spinlocks, typed pointer intrinsics). The spawn workaround above is a band-aid
+spinlocks, typed pointer intrinsics). Manual flagging from the waterfall is designed in issue #16 (rectangle select on
+the PNG, arcae writes, `--allow-flagging`, a flag-version backup and undo);
+read it before adding any write path to `web/`.
+
+The spawn workaround above is a band-aid
 over the fork+threads architecture that this migration removes: numba atomics
 would let the chi-squared kernel accumulate into one shared matrix, deleting the
 process pool, the pickling and the parent reduction together.

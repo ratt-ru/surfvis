@@ -1,0 +1,148 @@
+:root {
+  --bg: #12131a;
+  --panel: #1b1d27;
+  --line: #2c2f3d;
+  --text: #e6e7ee;
+  --muted: #9aa0b4;
+  --accent: #39ff14;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+header {
+  display: flex; align-items: baseline; gap: 1rem;
+  padding: 0.7rem 1rem; border-bottom: 1px solid var(--line);
+}
+header h1 { font-size: 1.05rem; margin: 0; letter-spacing: 0.04em; }
+#save-png {
+  margin-left: auto; flex: none;
+  background: var(--panel); color: var(--text); border: 1px solid var(--line);
+  border-radius: 4px; padding: 0.25rem 0.7rem; font: inherit; font-size: 0.8rem; cursor: pointer;
+}
+#save-png:hover:not(:disabled) { border-color: var(--accent); }
+#save-png:disabled { color: var(--muted); cursor: progress; }
+.ms { color: var(--muted); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.controls {
+  display: flex; flex-wrap: wrap; gap: 0.9rem; align-items: flex-end;
+  padding: 0.7rem 1rem; border-bottom: 1px solid var(--line);
+}
+.controls.sub { border: 0; padding: 0 0 0.6rem; }
+.controls label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.controls label.check { flex-direction: row; align-items: center; gap: 0.35rem; text-transform: none; letter-spacing: 0; font-size: 0.8rem; }
+.controls label.wide { flex: 1 1 16rem; }
+select, input[type="text"] {
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--line); border-radius: 4px; padding: 0.25rem 0.4rem; font-size: 0.85rem;
+}
+
+main { display: flex; flex-direction: column; gap: 1rem; padding: 1rem; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 0.9rem; }
+.panel-head h2 { margin: 0 0 0.15rem; font-size: 0.95rem; font-weight: 600; }
+.meta { margin: 0 0 0.7rem; color: var(--muted); font-size: 0.78rem; }
+.hint { color: var(--muted); padding: 1.2rem; margin: 0; }
+
+/* Grid and histogram share one column width and render as equal squares.
+   The grid's antenna labels sit in a gutter (left) and band (top); the
+   histogram reserves the same space, the gutter on its right, so the two
+   squares stay the same size. */
+.heatmap-row {
+  --gutter: 3.2rem; --band: 3.2rem;
+  display: grid; gap: 1.2rem; align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 720px));
+}
+.grid-wrap { min-width: 0; padding: var(--band) 0 0 var(--gutter); container-type: inline-size; }
+.grid-frame { position: relative; }
+.grid {
+  display: grid; gap: 1px; width: 100%;
+  grid-template-columns: repeat(var(--n), 1fr);
+  aspect-ratio: 1 / 1; background: var(--line);
+  border: 1px solid var(--line);
+}
+.grid i { display: block; cursor: pointer; }
+.grid i.auto { cursor: default; }
+.grid i:not(.auto):hover,
+.grid i.selected { outline: 2px solid var(--accent); outline-offset: -1px; z-index: 2; position: relative; }
+/* One label per antenna, sized to the cell pitch: 100cqw is the grid's width. */
+.labels { position: absolute; display: grid; color: var(--muted); pointer-events: none;
+  font-size: clamp(5px, calc(100cqw / var(--n) * 0.8), 11px); line-height: 1; }
+.labels.cols { left: 0; right: 0; bottom: 100%; height: var(--band); grid-template-columns: repeat(var(--n), 1fr);
+  font-size: clamp(5px, calc(100cqw / var(--n) * 0.75), 11px); }
+.labels.cols span { position: relative; }
+/* Anchored at the centre of the column's top edge, slanted up and to the
+   right. At 60 degrees neighbours sit pitch * sin(60) apart, clear of a
+   0.75 * pitch font. */
+.labels.cols b { position: absolute; left: 50%; bottom: 0.25em; font-weight: 400; white-space: nowrap;
+  transform-origin: 0 100%; transform: rotate(-60deg); }
+.labels.rows { top: 0; bottom: 0; right: 100%; width: var(--gutter); grid-template-rows: repeat(var(--n), 1fr);
+  justify-items: end; align-items: center; padding-right: 0.3em; }
+.labels.rows span { white-space: nowrap; }
+
+.tip {
+  position: fixed; z-index: 20; pointer-events: none;
+  background: #000d; color: var(--text); border: 1px solid var(--line); border-radius: 4px;
+  padding: 0.25rem 0.45rem; font-size: 0.78rem; line-height: 1.35; white-space: pre;
+}
+
+.axis { color: var(--muted); font-size: 0.72rem; margin: 0.35rem 0 0; }
+
+.hist { margin: 0; min-width: 0; padding: var(--band) var(--gutter) 0 0; }
+.hist .plot { aspect-ratio: 1 / 1; }
+.hist img { display: block; width: 100%; height: 100%; background: #fff; border-radius: 6px; }
+.hist figcaption { color: var(--muted); font-size: 0.72rem; margin-top: 0.3rem; text-align: center; }
+
+.waterfall { display: block; width: 100%; background: #fff; border-radius: 6px; }
+.swatch { display: inline-block; width: 0.8rem; height: 0.8rem; vertical-align: -1px; border: 2px solid var(--accent); }
+
+.note { color: #f0c674; font-size: 0.78rem; margin: 0 0 0.6rem; }
+.problems { color: #ff7b72; font-size: 0.82rem; margin: 0.4rem 0; padding-left: 1.2rem; }
+
+/* Loading: a bar across the top for any htmx request, the region being
+   replaced dimmed, and a spinner over a PNG until the browser has it. */
+#busy {
+  position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 10;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 40% 100%; background-repeat: no-repeat;
+  animation: sweep 1s linear infinite;
+  opacity: 0; transition: opacity 150ms;
+}
+/* A PNG still loading counts as busy too: the waterfall's is the MS read,
+   and its panel may be scrolled out of view. */
+#busy.htmx-request, body:has(.plot.loading) #busy { opacity: 1; }
+body:has(.plot.loading) .grid i:not(.auto) { cursor: progress; }
+@keyframes sweep { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+
+#heatmap, #waterfall { position: relative; }
+#heatmap.loading > *, #waterfall.loading > *, #selectors.loading > * { opacity: 0.45; transition: opacity 150ms; }
+#heatmap.loading, #waterfall.loading, #selectors.loading { pointer-events: none; cursor: progress; }
+#waterfall.loading { min-height: 8rem; }
+
+.plot { position: relative; }
+.panel > .plot { min-height: 12rem; }
+.plot.loading img { visibility: hidden; }
+#heatmap.loading::before, #waterfall.loading::before,
+.plot.loading::before {
+  content: ""; position: absolute; top: 50%; left: 50%; width: 1.8rem; height: 1.8rem;
+  margin: -0.9rem 0 0 -0.9rem; border-radius: 50%;
+  border: 3px solid var(--line); border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite; z-index: 5;
+}
+#waterfall.loading::after,
+.plot.loading::after {
+  content: attr(data-label); position: absolute; top: calc(50% + 1.4rem); left: 0; right: 0;
+  text-align: center; color: var(--muted); font-size: 0.78rem; z-index: 5;
+}
+#waterfall.loading::after { content: "Reading the Measurement Set\2026"; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 720px) {
+  .heatmap-row { grid-template-columns: minmax(0, 1fr); }
+  .hist { padding: 0; }
+}

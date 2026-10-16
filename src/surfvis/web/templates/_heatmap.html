@@ -1,0 +1,52 @@
+<div class="panel">
+  <div class="tip" id="tip" hidden></div>
+  <div class="panel-head">
+    <h2>&chi;<sup>2</sup>/dof &mdash; antenna &times; antenna &middot; {{ product }}</h2>
+    <p class="meta">
+      {% if chunk.gtable %}corrected {% endif %}{{ chunk.rcol }}{% if chunk.mcol %} &minus; {{ chunk.mcol }}{% endif %}
+      {% if chunk.gtable %}&middot; gains <code>{{ chunk.gtable }}</code>{% endif %}
+    </p>
+    <p class="meta">
+      time slots {{ chunk.t0 }}&ndash;{{ chunk.tf }} &middot;
+      channels {{ chunk.chan0 }}&ndash;{{ chunk.chanf }} &middot;
+      {{ nvalid }} baselines &middot;
+      median {{ "%.2f"|format(median) }} &middot;
+      worst {{ "%.2f"|format(worst) }}
+    </p>
+  </div>
+
+  <div class="heatmap-row">
+    <div class="grid-wrap" style="--n: {{ nant }};">
+      <div class="grid-frame">
+        <div class="labels cols" aria-hidden="true">
+          {% for name in names %}<span><b>{{ name }}</b></span>{% endfor %}
+        </div>
+        <div class="labels rows" aria-hidden="true">
+          {% for name in names %}<span>{{ name }}</span>{% endfor %}
+        </div>
+        <div class="grid">
+          {% for p in range(nant) %}{% for q in range(nant) %}{% if p == q %}<i
+            class="auto"
+            style="background:{{ colours[p][q] }}"></i>{% else %}<i
+            style="background:{{ colours[p][q] }}"
+            hx-get="/waterfall?{{ query }}&p={{ p }}&q={{ q }}"
+            hx-target="#waterfall"
+            data-pq="{{ p }},{{ q }}"></i>{% endif %}{% endfor %}{% endfor %}
+        </div>
+      </div>
+      <p class="axis readout" id="readout">columns: antenna2 &middot; rows: antenna1 &middot; hover for a baseline, arrow keys to move</p>
+    </div>
+
+    <figure class="hist">
+      <div class="plot loading">
+        <img src="/histogram.png?{{ query }}&scale={{ scale }}"
+             onload="plotLoaded(this)" onerror="plotFailed(this)"
+             alt="Histogram of chi-squared per degree of freedom over all antenna pairs">
+      </div>
+      <figcaption>
+        {{ scale }} scale, {{ "%.3g"|format(vmin) }} &ndash; {{ "%.3g"|format(vmax) }}
+      </figcaption>
+    </figure>
+  </div>
+</div>
+<script type="application/json" id="grid-data">{{ grid | tojson }}</script>

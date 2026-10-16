@@ -7,6 +7,14 @@ populated or the MSv4 view refuses to construct.
 The RESIDUAL column is deliberately non-standard. That is what makes it
 visible to an MSv4 reader as a secondary column, rather than being renamed the
 way DATA and WEIGHT_SPECTRUM are.
+
+The columns are mutually consistent, so corrections can be checked exactly::
+
+    DATA           = G_p MODEL_DATA G_q^H + RESIDUAL
+    CORRECTED_DATA = inv(G_p) DATA inv(G_q)^H
+
+with diagonal gains ``G`` that vary in time, frequency and antenna, returned
+as ``info["gains"]`` and written by :func:`write_gain_table`.
 """
 
 import numpy as np
@@ -66,8 +74,6 @@ def make_ms(
     main.putcol("UVW", rng.normal(size=(nrow, 3)) * 1e3)
 
     shape = (nrow, nchan, ncorr)
-    data = (rng.normal(size=shape) + 1j * rng.normal(size=shape)).astype(np.complex64)
-    main.putcol("DATA", data)
     main.putcol("FLAG", np.zeros(shape, bool))
     main.putcol("WEIGHT_SPECTRUM", np.ones(shape, np.float32))
 
@@ -77,7 +83,26 @@ def make_ms(
         p, q = hot
         bad = (ant1 == p) & (ant2 == q)
         resid[bad] *= hot_scale
+
+    # A slightly polarized point source, and diagonal gains on every axis.
+    receptors = [(0, 0), (0, 1), (1, 0), (1, 1)] if ncorr == 4 else [(0, 0), (1, 1)][:ncorr]
+    stokes_model = {(0, 0): 1.1, (0, 1): 0.05, (1, 0): 0.05, (1, 1): 0.9}
+    model = np.empty(shape, np.complex128)
+    for c, ij in enumerate(receptors):
+        model[..., c] = stokes_model[ij]
+    gains = rng.uniform(0.5, 2.0, size=(ntime * nscan, nchan, nant, 2)) * np.exp(
+        1j * rng.uniform(-np.pi, np.pi, size=(ntime * nscan, nchan, nant, 2))
+    )
+    tslot = np.repeat(np.arange(ntime * nscan), nbl)
+    corrupt = np.empty(shape, np.complex128)
+    for c, (i, j) in enumerate(receptors):
+        corrupt[..., c] = gains[tslot, :, ant1, i] * np.conj(gains[tslot, :, ant2, j])
+
+    data = (corrupt * model + resid).astype(np.complex64)
+    main.putcol("DATA", data)
     main.putcol("RESIDUAL", resid)
+    main.putcol("MODEL_DATA", model.astype(np.complex64))
+    main.putcol("CORRECTED_DATA", (data / corrupt).astype(np.complex64))
     main.close()
 
     names = [f"m{i:03d}" for i in range(nant)]
@@ -98,7 +123,7 @@ def make_ms(
     sub = table(f"{path}/POLARIZATION", readonly=False, ack=False)
     sub.addrows(1)
     sub.putcell("NUM_CORR", 0, ncorr)
-    sub.putcell("CORR_TYPE", 0, np.arange(9, 9 + ncorr))
+    sub.putcell("CORR_TYPE", 0, np.array([9, 10, 11, 12] if ncorr == 4 else [9, 12][:ncorr]))
     sub.close()
 
     sub = table(f"{path}/FIELD", readonly=False, ack=False)
@@ -152,4 +177,106 @@ def make_ms(
         "nscan": nscan,
         "antenna_names": names,
         "hot": hot,
+        "gains": gains,
+        "times": np.unique(times),
+        "freqs": np.linspace(1.0e9, 1.1e9, nchan),
     }
+
+
+def write_gain_table(info: dict, path: str, term: str = "NET") -> str:
+    """Write ``info["gains"]`` the way QuartiCal lays out a gain term.
+
+    One zarr group per (field, spw, scan) -- ``<path>/<term>/<term>_<n>`` --
+    holding ``gains`` ``(gain_time, gain_freq, antenna, direction,
+    correlation)`` and ``gain_flags``, with the partition ids as attributes.
+
+    Returns:
+        The term directory, which is what ``--gtable`` takes.
+    """
+    import xarray as xr
+
+    ntime, nscan = info["ntime"], info["nscan"]
+    for n in range(nscan):
+        sl = slice(n * ntime, (n + 1) * ntime)
+        g = info["gains"][sl][:, :, :, None, :]
+        ds = xr.Dataset(
+            {
+                "gains": (("gain_time", "gain_freq", "antenna", "direction", "correlation"), g),
+                "gain_flags": (("gain_time", "gain_freq", "antenna", "direction"), np.zeros(g.shape[:-1], np.int8)),
+            },
+            coords={
+                "gain_time": info["times"][sl],
+                "gain_freq": info["freqs"],
+                "antenna": info["antenna_names"],
+                "direction": [0],
+                "correlation": ["XX", "YY"],
+            },
+            attrs={"FIELD_ID": 0, "DATA_DESC_ID": 0, "SCAN_NUMBER": n + 1, "TYPE": "complex"},
+        )
+        ds.to_zarr(f"{path}/{term}/{term}_{n}", mode="w")
+    return f"{path}/{term}"
+
+
+def add_flag_version(ms: str, name: str, flags: np.ndarray, comment: str = "") -> None:
+    """Save ``flags`` as a CASA flag version of ``ms``.
+
+    CASA keeps versions next to the MS, in ``<ms>.flagversions/``: a
+    ``FLAG_VERSION_LIST`` of ``name : comment`` lines, and one ``flags.<name>``
+    table per version holding FLAG and FLAG_ROW, row-aligned with the MS.
+    """
+    import os
+
+    from casacore.tables import makearrcoldesc, makescacoldesc, maketabdesc, table
+
+    root = f"{ms.rstrip('/')}.flagversions"
+    os.makedirs(root, exist_ok=True)
+    desc = maketabdesc([makearrcoldesc("FLAG", False, ndim=2, valuetype="boolean"), makescacoldesc("FLAG_ROW", False)])
+    t = table(f"{root}/flags.{name}", desc, nrow=flags.shape[0], ack=False)
+    try:
+        t.putcol("FLAG", flags)
+        t.putcol("FLAG_ROW", np.zeros(flags.shape[0], bool))
+    finally:
+        t.close()
+    with open(f"{root}/FLAG_VERSION_LIST", "a") as listing:
+        listing.write(f"{name} : {comment or name}\n")
+
+
+def copy_with_tiled_flags(src: str, dest: str) -> str:
+    """Copy an MS, re-storing FLAG in a TiledShapeStMan.
+
+    ``default_ms`` gives FLAG a StandardStMan, which re-reads from disk on
+    every access. Real Measurement Sets -- anything written by the MeerKAT
+    archive, CASA or dask-ms -- use a TiledShapeStMan instead, whose tile cache
+    belongs to the open table object and therefore keeps serving the flags a
+    long-running reader saw first. Tests about staleness need the storage
+    manager the field actually uses.
+
+    Args:
+        src: An existing Measurement Set.
+        dest: Where to write the copy.
+
+    Returns:
+        ``dest``.
+    """
+    import shutil
+
+    from casacore.tables import makearrcoldesc, maketabdesc, table
+
+    shutil.copytree(src, dest)
+    t = table(dest, readonly=False, ack=False)
+    try:
+        flags = t.getcol("FLAG")
+        _, nchan, ncorr = flags.shape
+        t.removecols("FLAG")
+        t.addcols(
+            maketabdesc(makearrcoldesc("FLAG", False, ndim=2, shape=[nchan, ncorr], valuetype="boolean")),
+            {
+                "TYPE": "TiledShapeStMan",
+                "NAME": "TiledFlag",
+                "SPEC": {"DEFAULTTILESHAPE": [ncorr, nchan, 4]},
+            },
+        )
+        t.putcol("FLAG", flags)
+    finally:
+        t.close()
+    return dest

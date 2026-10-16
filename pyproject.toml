@@ -39,15 +39,38 @@ dependencies = [
 #     Adds the heavy runtime deps that core/ implementations need to execute
 #     natively. Add new deps to the "full" extra below as you grow core/.
 [project.optional-dependencies]
+# Python 3.10 supports the lightweight CLI dispatching into the container only:
+# every heavy dependency carries a python_version >= '3.11' marker, so on 3.10
+# [full] installs nothing, core imports fail, and the CLI falls back to the
+# container image (python:3.11-slim). Native execution needs 3.11+.
 full = [
-    "astropy>=5.0",
-    "dask>=2023.1",
-    "dask-ms[xarray, zarr]>=0.2.20",
-    "matplotlib>=3.6",
-    "numba>=0.57",
-    "numpy>=1.23",
-    "python-casacore>=3.5",
-    "xarray>=2023.1",
+    # Write support (needed to move flag-chi2 onto xarray-ms) lives on the
+    # 0.4.0-alpha line, cut from commits LATER than 0.5.x -- these version
+    # numbers do not order by capability. Never raise the <0.5.0 ceilings:
+    # 0.5.x has no write support. Same pins as pfb-imaging; see its wiki
+    # design-decisions D14 and ratt-ru/xarray-ms#170.
+    "arcae>=0.4.0a14,<0.5.0; python_version >= '3.11'",
+    "astropy>=5.0; python_version >= '3.11'",
+    "dask>=2023.1; python_version >= '3.11'",
+    "dask-ms[xarray, zarr]>=0.2.20; python_version >= '3.11'",
+    "matplotlib>=3.6; python_version >= '3.11'",
+    "numba>=0.57; python_version >= '3.11'",
+    "numpy>=1.23; python_version >= '3.11'",
+    "python-casacore>=3.5; python_version >= '3.11'",
+    "xarray>=2023.1; python_version >= '3.11'",
+    "zarr>=2.16; python_version >= '3.11'",
+]
+
+# Web interface (surfvis serve). Needs [full] as well -- it reads the MS. No
+# container fallback for a GUI, so on 3.10 'serve' reports the version
+# requirement instead.
+web = [
+    "fastapi>=0.115; python_version >= '3.11'",
+    "jinja2>=3.1; python_version >= '3.11'",
+    "uvicorn>=0.30; python_version >= '3.11'",
+    "msv4-utils>=0.0.3; python_version >= '3.11'",
+    # Same write-support line as arcae above; see the note there.
+    "xarray-ms>=0.4.0a12,<0.5.0; python_version >= '3.11'",
 ]
 
 [project.urls]
@@ -57,6 +80,10 @@ Repository = "https://github.com/ratt-ru/surfvis"
 
 [project.scripts]
 "surfvis" = "surfvis.cli:app"
+
+[tool.uv]
+# The xarray-ms/arcae write-support line is only published as prereleases.
+prerelease = "allow"
 
 [build-system]
 # NOTE: This uv_build constraint is intentionally aligned with hip-cargo's own pyproject.toml.
@@ -111,4 +138,6 @@ dev = [
 test = [
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
+    # starlette's TestClient needs this; only used by tests/test_web.py
+    "httpx2>=0.28; python_version >= '3.11'",
 ]

@@ -490,3 +490,28 @@ def test_waterfall_controls(chi2_corrected):
     broken = client.get(base + "&gtable=/nowhere/NET")
     assert "gain table" in broken.text
     assert "waterfall.png?" not in broken.text
+
+
+@needs_web
+def test_plane_cache_reuses_and_invalidates(chi2_zarr, monkeypatch):
+    """Zooming re-slices a cached plane; new settings or an invalidate re-read the MS."""
+    from surfvis.web import msdata
+
+    ms = chi2_zarr["ms"]["path"]
+    names = chi2_zarr["ms"]["antenna_names"]
+    msdata.invalidate(ms)
+    calls = []
+    real = msdata.waterfall
+    monkeypatch.setattr(msdata, "waterfall", lambda *a, **k: calls.append(1) or real(*a, **k))
+
+    a = msdata.cached_plane(ms, 0, 0, 1, names[0], names[2], "XX", "RESIDUAL")
+    b = msdata.cached_plane(ms, 0, 0, 1, names[0], names[2], "XX", "RESIDUAL")
+    assert a is b and len(calls) == 1
+    assert np.iscomplexobj(a.plane) and a.plane.shape == a.flags.shape == (12, 32)
+    assert a.freqs.shape == (32,) and a.times.shape == (12,)
+
+    msdata.cached_plane(ms, 0, 0, 1, names[0], names[2], "YY", "RESIDUAL")
+    assert len(calls) == 2
+    msdata.invalidate(ms)
+    msdata.cached_plane(ms, 0, 0, 1, names[0], names[2], "XX", "RESIDUAL")
+    assert len(calls) == 3

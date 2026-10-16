@@ -188,3 +188,17 @@ def test_backup_of_a_tiled_flag_column(chi2_zarr, tmp_path):
         np.testing.assert_array_equal(v.getcol("FLAG"), before)
     with pytest.raises(FileExistsError):
         save_flag_version(ms, "probe", "again")
+
+
+@needs_web
+def test_cached_plane_sees_a_flag_write(chi2_zarr, writable_ms):
+    """A plane cached before a flag write must not be served after it."""
+    from surfvis.web import msdata
+    from surfvis.web.flagging import Flagger
+
+    names = chi2_zarr["ms"]["antenna_names"]
+    before = msdata.cached_plane(writable_ms, 0, 0, 1, names[0], names[2], "XX", "RESIDUAL")
+    assert not before.flags[2:4, 5:9].all()
+    Flagger(writable_ms).apply(0, 0, 1, names[0], names[2], np.array(_rect(2, 3, 5, 8)), corr_idx=[0])
+    after = msdata.cached_plane(writable_ms, 0, 0, 1, names[0], names[2], "XX", "RESIDUAL")
+    assert after.flags[2:4, 5:9].all()

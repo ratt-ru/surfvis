@@ -84,6 +84,10 @@ class Waterfall:
     length: float | None = None
     # Unix seconds of each time slot; None if not known.
     times: np.ndarray | None = None
+    # The complex plane the values were taken from, and the channel
+    # frequencies in Hz; None where not known.
+    plane: np.ndarray | None = None
+    freqs: np.ndarray | None = None
 
 
 @lru_cache(maxsize=8)
@@ -347,6 +351,7 @@ def invalidate(ms: str) -> None:
     """
     _FINGERPRINTS.pop(ms, None)
     _open_partition.cache_clear()
+    _cached_plane.cache_clear()
     data_group.cache_clear()
     _release_cached_tables()
 
@@ -571,7 +576,79 @@ def waterfall(
         rect=rect,
         length=baseline_length(ms, name1, name2),
         times=ms_times(ds) - MJD_UNIX_OFFSET,
+        plane=plane,
+        freqs=np.asarray(ds.frequency.values, dtype=float),
     )
+
+
+def cached_plane(
+    ms: str,
+    field: int,
+    spw: int,
+    scan: int,
+    name1: str,
+    name2: str,
+    product: str,
+    column: str,
+    model: str = "",
+    gtable: str = "",
+    flagversion: str = "",
+    rect: tuple[int, int, int, int] | None = None,
+) -> Waterfall:
+    """One baseline's formed complex plane, cached so zooming does not re-read the MS.
+
+    The key includes the MS's on-disk fingerprint and the gain term's mtime,
+    so a rewritten MS or a re-solved gain table is read afresh. ``quantity``
+    is not part of the key: use ``plane``, not ``values``.
+    """
+    return _cached_plane(
+        ms,
+        field,
+        spw,
+        scan,
+        name1,
+        name2,
+        product,
+        column,
+        model,
+        gtable,
+        flagversion,
+        rect,
+        _fingerprint(ms),
+        _gtable_stamp(gtable),
+    )
+
+
+@lru_cache(maxsize=4)
+def _cached_plane(
+    ms, field, spw, scan, name1, name2, product, column, model, gtable, flagversion, rect, fingerprint, gstamp
+) -> Waterfall:
+    # fingerprint and gstamp only key the cache.
+    return waterfall(
+        ms,
+        field,
+        spw,
+        scan,
+        name1,
+        name2,
+        product,
+        column,
+        quantity="amp",
+        rect=rect,
+        model=model,
+        gtable=gtable,
+        flagversion=flagversion,
+    )
+
+
+def _gtable_stamp(gtable: str) -> int | None:
+    """mtime of a gain term's directory, or None."""
+    if not gtable:
+        return None
+    try:
+        return os.stat(gains_mod.term_path(gtable)).st_mtime_ns
+    except OSError:
+        return None
 
 
 def _describe(column: str, model: str, gtable: str) -> str:

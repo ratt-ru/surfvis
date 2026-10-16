@@ -19,16 +19,13 @@
       <div class="grid" style="grid-template-columns: repeat({{ nant }}, 1fr);">
         {% for p in range(nant) %}{% for q in range(nant) %}{% if p == q %}<i
           class="auto"
-          style="background:{{ colours[p][q] }}"
-          title="{{ names[p] }} (autocorrelation, not plotted)"></i>{% else %}<i
+          style="background:{{ colours[p][q] }}"></i>{% else %}<i
           style="background:{{ colours[p][q] }}"
           hx-get="/waterfall?{{ query }}&p={{ p }}&q={{ q }}"
           hx-target="#waterfall"
-          hx-include="#waterfall .keep"
-          data-pq="{{ p }},{{ q }}"
-          title="{{ names[p] }} &times; {{ names[q] }}"></i>{% endif %}{% endfor %}{% endfor %}
+          data-pq="{{ p }},{{ q }}"></i>{% endif %}{% endfor %}{% endfor %}
       </div>
-      <p class="axis">antenna2 &rarr; (rows: antenna1)</p>
+      <p class="axis readout" id="readout">antenna2 &rarr; (rows: antenna1) &middot; hover for a baseline, arrow keys to move</p>
     </div>
 
     <figure class="hist">
@@ -43,3 +40,4 @@
     </figure>
   </div>
 </div>
+<script type="application/json" id="grid-data">{{ grid | tojson }}</script>

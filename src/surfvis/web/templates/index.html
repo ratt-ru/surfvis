@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>surfvis</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 4'%3E%3Crect width='4' height='4' fill='%2312131a'/%3E%3Crect x='1' y='0' width='1' height='1' fill='%23f98e09'/%3E%3Crect x='3' y='2' width='1' height='1' fill='%23fcffa4'/%3E%3Crect x='0' y='3' width='1' height='1' fill='%23bc3754'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/style.css?v={{ static_version }}">
   <script src="/static/htmx.min.js?v={{ static_version }}"></script>
 </head>
@@ -28,39 +29,6 @@
       <p class="hint">Click a cell in the grid to plot that baseline's waterfall.</p>
     </section>
   </main>
-  <script>
-    // Dim whatever a request is about to replace, so a click visibly did something.
-    document.body.addEventListener("htmx:beforeRequest", (e) => e.detail.target.classList.add("loading"));
-    document.body.addEventListener("htmx:afterRequest", (e) => e.detail.target.classList.remove("loading"));
-
-    // Outline the cell whose waterfall is showing; survives a heatmap re-render.
-    let selected = null;
-    document.body.addEventListener("click", (e) => {
-      const cell = e.target.closest(".grid i[data-pq]");
-      if (cell) selected = cell.dataset.pq;
-      markSelected();
-    });
-    document.body.addEventListener("htmx:afterSwap", markSelected);
-    function markSelected() {
-      document.querySelectorAll(".grid i.selected").forEach((c) => c.classList.remove("selected"));
-      if (selected) document.querySelector(`.grid i[data-pq="${selected}"]`)?.classList.add("selected");
-    }
-
-    // PNGs are fetched by the browser, not htmx, so they report their own progress.
-    function plotLoaded(img) { img.parentElement.classList.remove("loading"); }
-    async function plotFailed(img) {
-      const wrap = img.parentElement;
-      wrap.classList.remove("loading");
-      let detail = "Could not render this plot.";
-      try {
-        const body = await (await fetch(img.src)).json();
-        if (body.detail) detail = body.detail;
-      } catch (_) {}
-      const p = document.createElement("p");
-      p.className = "problems";
-      p.textContent = detail;
-      wrap.replaceWith(p);
-    }
-  </script>
+  <script src="/static/app.js?v={{ static_version }}"></script>
 </body>
 </html>

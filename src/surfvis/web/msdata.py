@@ -82,6 +82,8 @@ class Waterfall:
     rect: tuple[int, int, int, int] | None
     # Metres, from ANTENNA::POSITION; None if it could not be read.
     length: float | None = None
+    # Unix seconds of each time slot; None if not known.
+    times: np.ndarray | None = None
 
 
 @lru_cache(maxsize=8)
@@ -245,6 +247,15 @@ def _antenna_positions(ms: str) -> dict[str, np.ndarray]:
     finally:
         ant.close()
     return {str(n): positions[k] for k, n in enumerate(names)}
+
+
+def antenna_positions(ms: str, names: list[str]) -> list[list[float]] | None:
+    """ITRF positions for ``names`` in order, or None if the ANTENNA table cannot be read."""
+    try:
+        positions = _antenna_positions(ms)
+        return [positions[n].tolist() for n in names]
+    except Exception:
+        return None
 
 
 def baseline_length(ms: str, name1: str, name2: str) -> float:
@@ -524,6 +535,7 @@ def waterfall(
         product=product,
         rect=rect,
         length=baseline_length(ms, name1, name2),
+        times=ms_times(ds) - MJD_UNIX_OFFSET,
     )
 
 

@@ -110,6 +110,13 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         colours = render.cell_colours(chunk.chi2_dof, norm)
         finite = chunk.finite
+        # What the hover readout and keyboard navigation need, sent once
+        # rather than as attributes on every cell.
+        grid = {
+            "names": chunk.antenna_names,
+            "values": [[None if np.isnan(v) else round(float(v), 4) for v in row] for row in chunk.chi2_dof],
+            "positions": msdata.antenna_positions(ms_path, chunk.antenna_names),
+        }
         return templates.TemplateResponse(
             request,
             "_heatmap.html",
@@ -127,6 +134,7 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
                 "query": urlencode({"field": field, "spw": spw, "scan": scan, "t": t, "f": f, "c": c}),
                 "scales": render.SCALES,
                 "product": c,
+                "grid": grid,
             },
         )
 
@@ -221,7 +229,9 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
                 "name1": names[p],
                 "name2": names[q],
                 "value": float(chunk.chi2_dof[p, q]),
-                "columns": _columns(ms_path, field, spw, scan),
+                # The column is corrected and has a model subtracted, so only
+                # visibility-like columns make sense; WEIGHT does not.
+                "columns": _columns(ms_path, field, spw, scan, complex_only=True),
                 "models": _columns(ms_path, field, spw, scan, complex_only=True),
                 "products": _products(ms_path, field, spw, scan),
                 "flagversions": msdata.flag_versions(ms_path),

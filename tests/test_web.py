@@ -107,6 +107,12 @@ def test_waterfall_carries_the_baseline_length(chi2_zarr):
     assert wf.length == pytest.approx(np.linalg.norm(positions[1] - positions[5]))
     assert wf.length > 0
 
+    # Slot times for the UTC axis: unix seconds, one per row, increasing.
+    with table(ms, ack=False) as main:
+        mjd = np.unique(main.query("SCAN_NUMBER==1").getcol("TIME"))
+    assert wf.times.shape == (wf.values.shape[0],)
+    np.testing.assert_allclose(wf.times, mjd - msdata.MJD_UNIX_OFFSET)
+
 
 @needs_web
 def test_residual_is_plottable_but_flag_is_not(chi2_zarr):
@@ -214,8 +220,13 @@ def test_routes(chi2_zarr):
     assert heatmap.text.count('hx-get="/waterfall') == 64 - 8
     assert heatmap.text.count('class="auto"') == 8
     assert "28 baselines" in heatmap.text
-    # A cell click carries the waterfall settings the user changed.
-    assert heatmap.text.count('hx-include="#waterfall .keep"') == 64 - 8
+    # The hover readout and keyboard navigation read the grid from one JSON blob.
+    import json
+
+    blob = heatmap.text.split('<script type="application/json" id="grid-data">')[1].split("</script>")[0]
+    grid = json.loads(blob)
+    assert len(grid["names"]) == 8 and len(grid["values"]) == 8 and len(grid["positions"]) == 8
+    assert grid["values"][1][5] == max(v for row in grid["values"] for v in row if v is not None)
 
     png = client.get("/histogram.png?field=0&spw=0&scan=1&t=0&f=0&c=XX")
     assert png.headers["content-type"] == "image/png"
@@ -454,6 +465,8 @@ def test_waterfall_controls(chi2_corrected):
         and '<option value="WEIGHT"' not in panel.text.split('name="model"')[1].split("</select>")[0]
     )
     assert "no longer shows" not in panel.text
+    # The column is corrected and has a model subtracted, so WEIGHT is not offered.
+    assert '<option value="WEIGHT"' not in panel.text
     assert "waterfall.png?" in panel.text
     assert 'class="keep"' not in panel.text
 

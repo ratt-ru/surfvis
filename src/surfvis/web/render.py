@@ -1,6 +1,7 @@
 """Colour mapping for the heatmap grid, and matplotlib PNGs for the rest."""
 
 import io
+from datetime import datetime, timezone
 
 import matplotlib
 
@@ -10,6 +11,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from matplotlib import colormaps  # noqa: E402
 from matplotlib.colors import LogNorm, Normalize, to_hex  # noqa: E402
+from matplotlib.ticker import FuncFormatter  # noqa: E402
 
 CMAP = "inferno"
 # Colour for antenna pairs with no unflagged data.
@@ -98,9 +100,13 @@ def histogram_png(values: np.ndarray, norm, title: str = "") -> bytes:
             ax.set_xscale("log")
         else:
             bins = 36
-        ax.hist(finite, bins=bins, histtype="stepfilled", alpha=0.65, color="#d95f0e")
-        ax.axvline(1.0, color="#4575b4", lw=1.0, ls="--", label=r"$\chi^2/dof=1$")
-        ax.legend(fontsize=9, frameon=False, loc="upper right")
+        _, edges, _ = ax.hist(finite, bins=bins, histtype="stepfilled", alpha=0.65, color="#d95f0e")
+        # The axis covers the data. The chi2/dof = 1 reference is drawn only
+        # when it falls inside: forcing it in can leave most decades empty.
+        ax.set_xlim(edges[0], edges[-1])
+        if edges[0] <= 1.0 <= edges[-1]:
+            ax.axvline(1.0, color="#4575b4", lw=1.0, ls="--", label=r"$\chi^2/dof=1$")
+            ax.legend(fontsize=9, frameon=False, loc="best")
     else:
         ax.text(0.5, 0.5, "all flagged", ha="center", va="center", fontsize=11, transform=ax.transAxes)
 
@@ -160,7 +166,22 @@ def waterfall_png(wf, cmap: str = "viridis", show_flags: bool = True) -> bytes:
         )
 
     ax.set_xlabel("Channel")
-    ax.set_ylabel("Time slot (within scan)")
+    if wf.times is not None and len(wf.times) == values.shape[0]:
+        # Pixels stay in slot coordinates (the chunk outline uses them); only
+        # the labels become UTC.
+        times = wf.times
+        start = datetime.fromtimestamp(float(times[0]), tz=timezone.utc)
+
+        def utc(slot, _pos):
+            k = int(round(slot))
+            if not 0 <= k < len(times):
+                return ""
+            return datetime.fromtimestamp(float(times[k]), tz=timezone.utc).strftime("%H:%M:%S")
+
+        ax.yaxis.set_major_formatter(FuncFormatter(utc))
+        ax.set_ylabel(f"UTC on {start:%Y-%m-%d}")
+    else:
+        ax.set_ylabel("Time slot (within scan)")
     length = f" ({wf.length:.0f} m)" if wf.length is not None else ""
     ax.set_title(
         f"{wf.antenna1}-{wf.antenna2}{length}   scan {wf.scan}   {wf.column}   {wf.quantity}   {wf.product}",

@@ -255,8 +255,8 @@ follow the `--ntimes` and `--nfreqs` you ran with.
 same quantity as the `surfchi2` images. Rows are antenna1, columns antenna2,
 and it is symmetric. Dark grey cells along the diagonal are auto-correlations,
 which carry no chi-squared; dark grey anywhere else means every visibility for
-that pair was flagged. Hovering a cell shows the antenna names, chi-squared/dof
-and baseline length under the grid. A single bad antenna
+that pair was flagged. Antenna names label both axes. Hovering a cell shows
+both antennas' names and numbers, the chi-squared/dof and the baseline length. A single bad antenna
 shows up as a bright row *and* column -- that cross is the pattern worth
 looking for, and it is why the grid is worth keeping rather than just ranking
 the worst pairs.

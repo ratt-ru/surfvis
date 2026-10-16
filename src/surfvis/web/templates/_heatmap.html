@@ -1,4 +1,5 @@
 <div class="panel">
+  <div class="tip" id="tip" hidden></div>
   <div class="panel-head">
     <h2>&chi;<sup>2</sup>/dof &mdash; antenna &times; antenna &middot; {{ product }}</h2>
     <p class="meta">
@@ -15,17 +16,25 @@
   </div>
 
   <div class="heatmap-row">
-    <div class="grid-wrap">
-      <div class="grid" style="grid-template-columns: repeat({{ nant }}, 1fr);">
-        {% for p in range(nant) %}{% for q in range(nant) %}{% if p == q %}<i
-          class="auto"
-          style="background:{{ colours[p][q] }}"></i>{% else %}<i
-          style="background:{{ colours[p][q] }}"
-          hx-get="/waterfall?{{ query }}&p={{ p }}&q={{ q }}"
-          hx-target="#waterfall"
-          data-pq="{{ p }},{{ q }}"></i>{% endif %}{% endfor %}{% endfor %}
+    <div class="grid-wrap" style="--n: {{ nant }};">
+      <div class="grid-frame">
+        <div class="labels cols" aria-hidden="true">
+          {% for name in names %}<span><b>{{ name }}</b></span>{% endfor %}
+        </div>
+        <div class="labels rows" aria-hidden="true">
+          {% for name in names %}<span>{{ name }}</span>{% endfor %}
+        </div>
+        <div class="grid">
+          {% for p in range(nant) %}{% for q in range(nant) %}{% if p == q %}<i
+            class="auto"
+            style="background:{{ colours[p][q] }}"></i>{% else %}<i
+            style="background:{{ colours[p][q] }}"
+            hx-get="/waterfall?{{ query }}&p={{ p }}&q={{ q }}"
+            hx-target="#waterfall"
+            data-pq="{{ p }},{{ q }}"></i>{% endif %}{% endfor %}{% endfor %}
+        </div>
       </div>
-      <p class="axis readout" id="readout">antenna2 &rarr; (rows: antenna1) &middot; hover for a baseline, arrow keys to move</p>
+      <p class="axis readout" id="readout">columns: antenna2 &middot; rows: antenna1 &middot; hover for a baseline, arrow keys to move</p>
     </div>
 
     <figure class="hist">

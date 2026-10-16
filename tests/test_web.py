@@ -220,6 +220,10 @@ def test_routes(chi2_zarr):
     assert heatmap.text.count('hx-get="/waterfall') == 64 - 8
     assert heatmap.text.count('class="auto"') == 8
     assert "28 baselines" in heatmap.text
+    # Antenna names label both axes: once along the top, once down the side.
+    names = chi2_zarr["ms"]["antenna_names"]
+    assert heatmap.text.count(f"<span><b>{names[3]}</b></span>") == 1
+    assert heatmap.text.count(f"<span>{names[3]}</span>") == 1
     # The hover readout and keyboard navigation read the grid from one JSON blob.
     import json
 

@@ -67,26 +67,47 @@ document.body.addEventListener("htmx:afterSettle", (e) => {
   }
 });
 
-// Hover readout: names, chi-squared/dof and baseline length.
+// Hover: a tooltip at the cursor and the readout under the grid, both naming
+// the antennas with their numbers (the grid index is the ANTENNA row).
 function describe(cell) {
   const data = gridData();
   const [p, q] = pq(cell);
   const value = data.values[p][q];
-  let text = `${data.names[p]} × ${data.names[q]} · χ²/dof ${value === null ? "flagged" : value.toFixed(2)}`;
+  const names = `${data.names[p]} (${p}) \u00d7 ${data.names[q]} (${q})`;
+  let stats = `\u03c7\u00b2/dof ${value === null ? "flagged" : value.toFixed(2)}`;
   if (data.positions) {
     const [a, b] = [data.positions[p], data.positions[q]];
-    text += ` · ${Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]).toFixed(0)} m`;
+    stats += ` \u00b7 ${Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]).toFixed(0)} m`;
   }
-  return text;
+  return [names, stats];
 }
 
 let readoutDefault = null;
-document.body.addEventListener("mouseover", (e) => {
+function showReadout(cell) {
   const readout = document.getElementById("readout");
   if (!readout) return;
   readoutDefault ??= readout.textContent;
+  readout.textContent = cell ? describe(cell).join(" \u00b7 ") : readoutDefault;
+}
+
+document.body.addEventListener("mousemove", (e) => {
+  const tip = document.getElementById("tip");
   const cell = e.target.closest(".grid i[data-pq]");
-  readout.textContent = cell ? describe(cell) : readoutDefault;
+  showReadout(cell);
+  if (!tip) return;
+  if (!cell) {
+    tip.hidden = true;
+    return;
+  }
+  tip.textContent = describe(cell).join("\n");
+  tip.hidden = false;
+  // Below-right of the cursor, flipped when it would leave the viewport.
+  const pad = 14;
+  const { width, height } = tip.getBoundingClientRect();
+  const x = e.clientX + pad + width > window.innerWidth ? e.clientX - pad - width : e.clientX + pad;
+  const y = e.clientY + pad + height > window.innerHeight ? e.clientY - pad - height : e.clientY + pad;
+  tip.style.left = `${x}px`;
+  tip.style.top = `${y}px`;
 });
 
 // Arrow keys move the selection: up/down change antenna1 (the row),
@@ -108,8 +129,7 @@ document.addEventListener("keydown", (e) => {
   const next = document.querySelector(`.grid i[data-pq="${p},${q}"]`);
   if (!next) return;
   next.click();
-  const readout = document.getElementById("readout");
-  if (readout) readout.textContent = describe(next);
+  showReadout(next);
 });
 
 // PNGs are fetched by the browser, not htmx, so they report their own progress.

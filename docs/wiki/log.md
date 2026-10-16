@@ -3,10 +3,17 @@ type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
 timestamp: 2026-10-16
-last_verified_commit: 1950c3f
+last_verified_commit: 3cd34f5
 ---
 
 # Wiki changelog
+
+## 2026-10-16 — browser navigation (verified at `3cd34f5`)
+
+- **Updated** `web-app.md`: hover readout and arrow keys from a per-heatmap
+  JSON blob; the waterfall follows the selected baseline (by name) into a new
+  field/scan/bin, hooked on `afterSettle`; UTC time axis; histogram axis
+  limited to the data; complex-only column menu.
 
 ## 2026-10-16 — static cache busting (verified at `1950c3f`)
 

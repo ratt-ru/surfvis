@@ -4,7 +4,7 @@ title: Chi-squared browser
 description: How surfvis serve links surfchi2 output to on-demand baseline waterfalls, the waterfall's correction / Stokes / flag-version controls, and the xarray-ms facts it depends on.
 tags: [web, fastapi, htmx, xarray-ms, zarr]
 timestamp: 2026-10-16
-last_verified_commit: 1950c3f
+last_verified_commit: 3cd34f5
 ---
 
 # Chi-squared browser
@@ -130,13 +130,17 @@ it reaches the menus, or the column would be listed twice.
   with no row are flagged. arcae returns these boolean columns as `uint8`, and
   wants a writable row-index array. The web layer needs no python-casacore.
   Only listed names are accepted, which also keeps the name from being a path.
+- **The column menu lists complex columns only.** The column is corrected and
+  has a model subtracted, which means nothing for `WEIGHT`.
 - **Problems are reported in the panel**, not as a broken image: the
   `/waterfall` route runs `msdata.check()` (columns exist, product formable,
   gains load and align, version exists) before emitting the `<img>`. If the
   PNG still fails, the page fetches it again and shows the route's `detail`.
 - **Choices survive a change of baseline.** The route marks each control whose
-  value differs from the heatmap's default with `class="keep"`, and every grid
-  cell carries `hx-include="#waterfall .keep"`. Only *changed* controls are
+  value differs from the heatmap's default with `class="keep"`, and
+  `static/app.js` adds those to a cell click's parameters in
+  `htmx:configRequest` (an `hx-include` would warn on every click while
+  nothing is marked). Only *changed* controls are
   carried, so a product left at its default follows the heatmap's product
   when that changes, while an explicit choice sticks.
 
@@ -156,7 +160,27 @@ histogram PNG is square, so the two render at the same size.
 
 The waterfall title carries the baseline length: the distance between the two
 `ANTENNA::POSITION` rows (ITRF metres), read once per MS with arcae
-(`msdata.baseline_length`).
+(`msdata.baseline_length`). Its time axis is labelled in UTC; pixels stay in
+slot coordinates, since the chunk outline (and later, a flagging selection)
+uses them.
+
+The heatmap ships one JSON blob (`#grid-data`: antenna names, the χ²/dof
+matrix, antenna positions) rather than attributes on every cell. `app.js`
+reads it for:
+
+- **the hover readout** under the grid: names, χ²/dof, baseline length;
+- **arrow-key navigation**: up/down change antenna1, left/right antenna2,
+  skipping the diagonal;
+- **following the selection.** The selected baseline is held by antenna
+  *names*, since another scan can hold a different antenna set. When the
+  heatmap re-renders (field, scan, bin or product) and a waterfall is open, the
+  same baseline is re-fetched there, with the carried settings. This hooks
+  `htmx:afterSettle`, not `afterSwap`: htmx has not wired the new cells' `hx-get`
+  at `afterSwap`, so a click there does nothing.
+
+The histogram's axis covers the data; the χ²/dof = 1 reference is drawn only
+when it falls inside, since forcing it in left most decades empty on
+uncalibrated data.
 
 ## Loading feedback
 
@@ -177,8 +201,7 @@ Static URLs carry `?v=<digest of the static files>`. `StaticFiles` sends no
 the old one with new HTML after an upgrade: no indicators, an unsized
 histogram.
 
-The clicked cell keeps an outline (`.selected`, matched by `data-pq`) across
-heatmap re-renders.
+The selected cell keeps an outline (`.selected`) across heatmap re-renders.
 
 ## Colour scaling
 

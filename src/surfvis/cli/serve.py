@@ -35,6 +35,13 @@ def serve(
         int,
         typer.Option(help="Port to listen on.", rich_help_panel="Server"),
     ] = 8000,
+    allow_flagging: Annotated[
+        bool,
+        typer.Option(
+            help="Let the browser write FLAG. FLAG is saved as a CASA flag version before the first write.",
+            rich_help_panel="Flagging",
+        ),
+    ] = False,
     reload: Annotated[
         bool,
         typer.Option(help="Reload on source changes (development only).", rich_help_panel="Server"),
@@ -57,6 +64,7 @@ def serve(
             hint += " -- note xarray-ms needs Python 3.11 or newer"
         raise typer.BadParameter(f"The web interface needs the optional extras: {hint} ({exc})") from exc
 
-    app = create_app(data, ms)
-    typer.echo(f"surfvis serving {data} on http://{host}:{port}")
+    app = create_app(data, ms, allow_flagging=allow_flagging)
+    mode = "flagging ENABLED -- FLAG may be modified" if allow_flagging else "read-only"
+    typer.echo(f"surfvis serving {data} on http://{host}:{port} ({mode})")
     uvicorn.run(app, host=host, port=port, reload=reload)

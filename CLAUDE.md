@@ -49,7 +49,7 @@ docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/src -w /src \
    PYTHONPATH=/tmp/t:/src/src:/src /tmp/t/bin/pytest tests/ -q -W ignore"
 ```
 
-That is the only way to run the full suite (49 tests). **CI does not run them** —
+That is the only way to run the full suite (61 tests). **CI does not run them** —
 `.github/workflows/ci.yml` installs the lightweight package only, deliberately,
 since python-casacore and numba make CI slow and brittle. Verify locally.
 
@@ -74,7 +74,7 @@ Three layers, and the boundary between them is load-bearing:
   (htmx partials) and `static/app.js` (selection, hover readout, arrow keys,
   carried settings, loading states, Save as PNG). `htmx.min.js` and
   `html-to-image.js` are vendored, not loaded from a CDN: compute nodes are
-  often offline. Dask-free, and read-only for now.
+  often offline. Dask-free. `flagging.py` is the one write path (below).
 - **`utils/products.py` and `utils/gains.py`** are the exception to "utils is
   heavy": numpy/xarray only, shared by `chi2` and `web/` so the heatmap and the
   waterfall form corrected residuals and Stokes products with the same code.
@@ -230,14 +230,18 @@ The project is **moving away from Dask and distributed**. `core/chi2.py` and
 not. Before writing new parallel
 or kernel code, consult `rarg-ray-patterns` (Ray actor autoscaling,
 `wrap_future` bridging `ObjectRef` to asyncio) and `rarg-numba-patterns` (atomic
-spinlocks, typed pointer intrinsics). Manual flagging from the waterfall is designed in issue #16 (rectangle select on
-the PNG, arcae writes, `--allow-flagging`, a flag-version backup and undo);
-read it before adding any write path to `web/`.
-
-The spawn workaround above is a band-aid
+spinlocks, typed pointer intrinsics). The spawn workaround above is a band-aid
 over the fork+threads architecture that this migration removes: numba atomics
 would let the chi-squared kernel accumulate into one shared matrix, deleting the
 process pool, the pickling and the parent reduction together.
+
+**Manual flagging** from the waterfall is designed in issue #16 and is being
+built on the `flagging` branch, stacked on `serve-ui`. The write path is
+`web/flagging.py`: selections are polygons in (time slot, channel), rasterised
+on the server by cell centre and even-odd; writes need `serve
+--allow-flagging`, save FLAG as a CASA flag version before the first write, and
+keep an undo stack. Next is a canvas-drawn waterfall with polygon and
+drag-rectangle selection. Any new write to the MS goes through `Flagger`.
 
 ## LLM wiki
 

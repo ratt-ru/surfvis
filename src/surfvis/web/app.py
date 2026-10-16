@@ -2,6 +2,7 @@
 
 import hashlib
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlencode
 
 import numpy as np
@@ -9,20 +10,40 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
 
+from surfvis.utils import products as products_mod
 from surfvis.web import msdata, render
+from surfvis.web.flagging import Flagger
 from surfvis.web.store import Chi2Store, Selection
 
 HERE = Path(__file__).parent
 
 
-def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
+class FlagRequest(BaseModel):
+    """A polygon on one baseline's waterfall, in its (time slot, channel) coordinates."""
+
+    field: int
+    spw: int
+    scan: int
+    p: int
+    q: int
+    product: str
+    vertices: list[tuple[float, float]] = Field(min_length=3)
+    # "product": the correlations the plotted product is formed from; "all": every correlation.
+    correlations: Literal["product", "all"] = "product"
+    dry_run: bool = False
+
+
+def create_app(data: str | Path, ms: str | Path | None = None, allow_flagging: bool = False) -> FastAPI:
     """Build the app around one chi-squared dataset.
 
     Args:
         data: Path to the zarr written by ``surfvis chi2 --dataout``.
         ms: Measurement Set to read waterfalls from. Defaults to the path
             recorded in the dataset, which is right unless it has moved.
+        allow_flagging: Enable the routes that write FLAG. Off by default:
+            the browser is read-only unless asked otherwise.
 
     Returns:
         A configured :class:`fastapi.FastAPI` instance.
@@ -283,9 +304,63 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         return Response(render.waterfall_png(wf), media_type="image/png")
 
+    flagger = Flagger(ms_path) if allow_flagging else None
+
+    def _flagger() -> Flagger:
+        if flagger is None:
+            raise HTTPException(status_code=403, detail="Flagging is disabled; start serve with --allow-flagging")
+        return flagger
+
+    @app.post("/flag")
+    def flag(req: FlagRequest):
+        """Flag the cells inside a polygon on one baseline, or count them with ``dry_run``."""
+        flagger_ = _flagger()
+        try:
+            names = list(store.group(req.field, req.spw, req.scan).attrs["antenna_names"])
+            labels = msdata.labels(ms_path, req.field, req.spw, req.scan)
+            if req.correlations == "all":
+                corr_idx = list(range(len(labels)))
+            else:
+                corr_idx = [labels.index(c) for c in products_mod.needed([req.product], labels)]
+            return flagger_.apply(
+                req.field,
+                req.spw,
+                req.scan,
+                names[req.p],
+                names[req.q],
+                np.asarray(req.vertices, dtype=float),
+                corr_idx,
+                dry_run=req.dry_run,
+            )
+        except (KeyError, IndexError, FileNotFoundError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/flag/undo")
+    def flag_undo():
+        """Restore the cells the most recent flag edit changed."""
+        edit = _flagger().undo()
+        if edit is None:
+            raise HTTPException(status_code=409, detail="Nothing to undo")
+        return {"undone": edit.id, "description": edit.description, "cells": edit.cells}
+
+    @app.get("/flag/state")
+    def flag_state():
+        if flagger is None:
+            return {"enabled": False}
+        return {
+            "enabled": True,
+            "backup": flagger.backup,
+            "edits": [
+                {"id": e.id, "description": e.description, "cells": e.cells, "newly_flagged": e.newly_flagged}
+                for e in flagger.edits
+            ],
+        }
+
     @app.get("/healthz")
     def healthz():
-        return {"status": "ok", "scans": len(store.scans), "ms": ms_path}
+        return {"status": "ok", "scans": len(store.scans), "ms": ms_path, "flagging": flagger is not None}
 
     return app
 

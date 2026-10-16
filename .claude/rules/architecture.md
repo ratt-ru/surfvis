@@ -43,7 +43,7 @@ surfvis/
 |---|---|---|
 | `cli/` | Thin Typer wrappers with `@stimela_cab` (and optional `@stimela_output`). One file per command. **Imports from `core/` must be lazy** (inside the function body). | Heavy imports at module top. Business logic. NumPy / pandas / domain libs. |
 | `core/` | The actual implementation. Type-hinted function with the same name as the CLI wrapper, but **no Typer / hip-cargo decorators**. Free to import anything. | Typer. `@stimela_cab`. UI concerns. `typer.Exit(...)`. |
-| `web/` | The browser behind `surfvis serve`, imported only by `cli/serve.py` (lazily). Reads the `chi2` zarr and the MS; never writes. | Dask. `@stimela_cab`. A write path to the MS without the safeguards in issue #16. |
+| `web/` | The browser behind `surfvis serve`, imported only by `cli/serve.py` (lazily). Reads the `chi2` zarr and the MS. Writes FLAG only through `flagging.Flagger`, only under `--allow-flagging`. | Dask. `@stimela_cab`. Any other write path to the MS. |
 | `cabs/` | Generated `<command>.yml` files. Committed to source control. Loaded by Stimela. | Anything you wrote by hand. Drift from `cli/*.py`. |
 
 ### Adding a new command

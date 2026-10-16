@@ -177,6 +177,7 @@ Useful flags:
 | `--ms` | from the dataset | Override if the MS moved. |
 | `--host` | `127.0.0.1` | Use `0.0.0.0` in a container, or to accept remote connections. |
 | `--port` | `8000` | Change if the port is taken. |
+| `--allow-flagging` | off | Let the browser write FLAG (see below). |
 | `--reload` | off | Development only. |
 
 `--host 127.0.0.1` means nothing outside the machine can reach it. That is the
@@ -365,8 +366,13 @@ select a compatible subset.
 `surfvis flag-chi2` writes to the flag column of the MS you give it. There is
 no dry-run.
 
-`surfvis serve` is read-only. Manual flagging from the waterfall is planned in
-[#16](https://github.com/ratt-ru/surfvis/issues/16).
+`surfvis serve` is read-only unless started with `--allow-flagging`. Manual
+flagging from the waterfall is in progress
+([#16](https://github.com/ratt-ru/surfvis/issues/16)): the server side exists,
+the selection tool in the page does not yet. Before its first write, a
+flagging session saves FLAG as a CASA flag version named
+`surfvis_before_<UTC timestamp>`, so `flagmanager` (or the flags menu) can
+restore it.
 
 ## Development
 

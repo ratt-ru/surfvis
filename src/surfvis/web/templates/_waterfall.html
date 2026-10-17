@@ -69,10 +69,17 @@
     {% for problem in problems %}<li>{{ problem }}</li>{% endfor %}
   </ul>
   {% else %}
-  <div class="plot loading" data-label="Reading visibilities&hellip;">
-    <img class="waterfall" src="/waterfall.png?{{ query }}"
-         onload="plotLoaded(this)" onerror="plotFailed(this)"
-         alt="Waterfall for baseline {{ name1 }} to {{ name2 }}">
+  <div class="wf" data-src="/waterfall.bin?{{ query }}"
+       data-module="/static/wf/widget.mjs?v={{ static_version }}">
+    <div class="wf-bar">
+      <span class="wf-title"></span>
+      <label class="wf-check"><input type="checkbox" class="wf-flags" checked> show flags</label>
+      <button type="button" class="wf-reset">Reset view</button>
+    </div>
+    <div class="plot loading" data-label="Reading visibilities&hellip;">
+      <canvas class="wf-canvas" aria-label="Waterfall for baseline {{ name1 }} to {{ name2 }}"></canvas>
+    </div>
+    <p class="axis wf-readout">wheel: zoom &middot; shift-drag or middle-drag: pan &middot; 0: reset</p>
   </div>
   {% endif %}
 </div>

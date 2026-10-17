@@ -3,10 +3,26 @@ type: log
 title: Wiki changelog
 description: Chronological record of what changed in the wiki and why.
 timestamp: 2026-10-16
-last_verified_commit: 1ab4f7c
+last_verified_commit: d4a40a0
 ---
 
 # Wiki changelog
+
+## 2026-10-16 — plane cache and widget fixes (verified at `d4a40a0`)
+
+- **Updated** `web-app.md`: "Plane cache" section (key, memory, colour limits),
+  `wheelFactor`, single first fetch, fetch abort.
+
+## 2026-10-16 — canvas waterfall widget (verified at `dfee997`)
+
+- **Updated** `web-app.md`: new "Canvas waterfall" section (route, wire format,
+  modules, interactions, `no-cache` static header); loading-feedback bullet.
+
+## 2026-10-16 — flagging write path (verified at `3eb66e8`)
+
+- **Updated** `web-app.md`: new "Manual flagging (write path)" section --
+  polygon rasterisation, `/flag`, the backup flag version (and why `_c_order`
+  stays in the descriptor), undo, cache invalidation.
 
 ## 2026-10-16 — Save as PNG (verified at `1ab4f7c`)
 

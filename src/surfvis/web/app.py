@@ -2,6 +2,7 @@
 
 import hashlib
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlencode
 
 import numpy as np
@@ -9,27 +10,60 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
 
-from surfvis.web import msdata, render
+from surfvis.utils import products as products_mod
+from surfvis.web import msdata, planes, render
+from surfvis.web.flagging import Flagger
 from surfvis.web.store import Chi2Store, Selection
 
 HERE = Path(__file__).parent
 
 
-def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
+class FlagRequest(BaseModel):
+    """A polygon on one baseline's waterfall, in its (time slot, channel) coordinates."""
+
+    field: int
+    spw: int
+    scan: int
+    p: int
+    q: int
+    product: str
+    vertices: list[tuple[float, float]] = Field(min_length=3)
+    # "product": the correlations the plotted product is formed from; "all": every correlation.
+    correlations: Literal["product", "all"] = "product"
+    dry_run: bool = False
+
+
+class RevalidatedStaticFiles(StaticFiles):
+    """Static files the browser must revalidate (by ETag) on every use.
+
+    The ``?v=`` digest busts caches for files the page names, but imports
+    between ES modules under ``static/wf/`` cannot carry it.
+    """
+
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+def create_app(data: str | Path, ms: str | Path | None = None, allow_flagging: bool = False) -> FastAPI:
     """Build the app around one chi-squared dataset.
 
     Args:
         data: Path to the zarr written by ``surfvis chi2 --dataout``.
         ms: Measurement Set to read waterfalls from. Defaults to the path
             recorded in the dataset, which is right unless it has moved.
+        allow_flagging: Enable the routes that write FLAG. Off by default:
+            the browser is read-only unless asked otherwise.
 
     Returns:
         A configured :class:`fastapi.FastAPI` instance.
     """
     store = Chi2Store(data)
     app = FastAPI(title="surfvis")
-    app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
+    app.mount("/static", RevalidatedStaticFiles(directory=HERE / "static"), name="static")
     templates = Jinja2Templates(directory=HERE / "templates")
     # StaticFiles sends no Cache-Control, so browsers cache by heuristic and
     # keep serving an old stylesheet after an upgrade. A version in the URL
@@ -283,9 +317,145 @@ def create_app(data: str | Path, ms: str | Path | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         return Response(render.waterfall_png(wf), media_type="image/png")
 
+    @app.get("/waterfall.bin")
+    def waterfall_bin(
+        field: int = Query(...),
+        spw: int = Query(...),
+        scan: int = Query(...),
+        t: int = Query(...),
+        f: int = Query(...),
+        c: str = Query(...),
+        p: int = Query(...),
+        q: int = Query(...),
+        product: str = Query(""),
+        column: str = Query(""),
+        model: str | None = Query(None),
+        gtable: str | None = Query(None),
+        flagversion: str = Query(""),
+        quantity: str = Query("amp"),
+        t0: int = Query(0),
+        t1: int | None = Query(None),
+        c0: int = Query(0),
+        c1: int | None = Query(None),
+        max_t: int = Query(1024),
+        max_c: int = Query(1024),
+        meta: bool = Query(False),
+    ):
+        """A window of one baseline's waterfall, reduced to at most max_t x max_c bins, for the canvas."""
+        if quantity not in msdata.QUANTITIES:
+            raise HTTPException(status_code=400, detail=f"quantity must be one of {msdata.QUANTITIES}")
+        chunk = _chunk(field, spw, scan, t, f, c)
+        names = chunk.antenna_names
+        settings = _waterfall_settings(chunk, product, column, model, gtable, flagversion, quantity)
+        settings.pop("quantity")
+        try:
+            wf = msdata.cached_plane(
+                ms_path,
+                field,
+                spw,
+                scan,
+                names[p],
+                names[q],
+                **settings,
+            )
+        except (KeyError, IndexError, ValueError, FileNotFoundError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        ntime, nchan = wf.plane.shape
+        t0, t1 = max(t0, 0), min(ntime if t1 is None else t1, ntime)
+        c0, c1 = max(c0, 0), min(nchan if c1 is None else c1, nchan)
+        if t0 >= t1 or c0 >= c1:
+            raise HTTPException(status_code=400, detail=f"Empty window: slots {t0}-{t1}, channels {c0}-{c1}")
+        cap = planes.MAX_BINS
+        block = planes.reduce_block(
+            wf.plane, wf.flags, quantity, t0, t1, c0, c1, min(max(max_t, 1), cap), min(max(max_c, 1), cap)
+        )
+        if quantity not in wf.limits:  # cached with the plane; colours do not move on zoom
+            wf.limits[quantity] = planes.colour_limits(wf.plane, wf.flags, quantity)
+        vmin, vmax = wf.limits[quantity]
+        length = f" ({wf.length:.0f} m)" if wf.length is not None else ""
+        header = {
+            "t0": t0,
+            "t1": t1,
+            "c0": c0,
+            "c1": c1,
+            "tstep": block.tstep,
+            "cstep": block.cstep,
+            "ntime": ntime,
+            "nchan": nchan,
+            "vmin": vmin,
+            "vmax": vmax,
+            "quantity": quantity,
+            "colormap": "twilight" if quantity == "phase" else "viridis",
+            "title": f"{wf.antenna1}-{wf.antenna2}{length}   scan {wf.scan}   {wf.column}   {quantity}   {wf.product}",
+            "rect": [chunk.t0, chunk.tf, chunk.chan0, chunk.chanf],
+        }
+        if meta:
+            header["times"] = [float(x) for x in wf.times] if wf.times is not None else None
+            header["freqs"] = [float(x) for x in wf.freqs] if wf.freqs is not None else None
+        return Response(
+            planes.encode(header, block),
+            media_type="application/octet-stream",
+            headers={"Cache-Control": "no-store"},
+        )
+
+    flagger = Flagger(ms_path) if allow_flagging else None
+
+    def _flagger() -> Flagger:
+        if flagger is None:
+            raise HTTPException(status_code=403, detail="Flagging is disabled; start serve with --allow-flagging")
+        return flagger
+
+    @app.post("/flag")
+    def flag(req: FlagRequest):
+        """Flag the cells inside a polygon on one baseline, or count them with ``dry_run``."""
+        flagger_ = _flagger()
+        try:
+            names = list(store.group(req.field, req.spw, req.scan).attrs["antenna_names"])
+            labels = msdata.labels(ms_path, req.field, req.spw, req.scan)
+            if req.correlations == "all":
+                corr_idx = list(range(len(labels)))
+            else:
+                corr_idx = [labels.index(c) for c in products_mod.needed([req.product], labels)]
+            return flagger_.apply(
+                req.field,
+                req.spw,
+                req.scan,
+                names[req.p],
+                names[req.q],
+                np.asarray(req.vertices, dtype=float),
+                corr_idx,
+                dry_run=req.dry_run,
+            )
+        except (KeyError, IndexError, FileNotFoundError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/flag/undo")
+    def flag_undo():
+        """Restore the cells the most recent flag edit changed."""
+        edit = _flagger().undo()
+        if edit is None:
+            raise HTTPException(status_code=409, detail="Nothing to undo")
+        return {"undone": edit.id, "description": edit.description, "cells": edit.cells}
+
+    @app.get("/flag/state")
+    def flag_state():
+        if flagger is None:
+            return {"enabled": False}
+        return {
+            "enabled": True,
+            "backup": flagger.backup,
+            "edits": [
+                {"id": e.id, "description": e.description, "cells": e.cells, "newly_flagged": e.newly_flagged}
+                for e in flagger.edits
+            ],
+        }
+
     @app.get("/healthz")
     def healthz():
-        return {"status": "ok", "scans": len(store.scans), "ms": ms_path}
+        return {"status": "ok", "scans": len(store.scans), "ms": ms_path, "flagging": flagger is not None}
 
     return app
 

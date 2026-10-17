@@ -67,6 +67,14 @@ document.body.addEventListener("htmx:afterSettle", (e) => {
   }
 });
 
+// The waterfall panel is drawn by static/wf/widget.mjs; mount it whenever the panel is (re)rendered.
+document.body.addEventListener("htmx:afterSettle", (e) => {
+  if (e.detail.target.id !== "waterfall") return;
+  const root = e.detail.target.querySelector(".wf[data-src]");
+  if (!root) return;
+  import(root.dataset.module).then((m) => m.mount(root));
+});
+
 // Hover: a tooltip at the cursor and the readout under the grid, both naming
 // the antennas with their numbers (the grid index is the ANTENNA row).
 function describe(cell) {

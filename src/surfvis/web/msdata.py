@@ -14,7 +14,7 @@ surfchi2 works on plottable.
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 
 import numpy as np
@@ -84,6 +84,12 @@ class Waterfall:
     length: float | None = None
     # Unix seconds of each time slot; None if not known.
     times: np.ndarray | None = None
+    # The complex plane the values were taken from, and the channel
+    # frequencies in Hz; None where not known.
+    plane: np.ndarray | None = None
+    freqs: np.ndarray | None = None
+    # Colour limits per quantity, filled in by the canvas route on a cached plane.
+    limits: dict = field(default_factory=dict, compare=False, repr=False)
 
 
 @lru_cache(maxsize=8)
@@ -298,6 +304,60 @@ def ms_times(ds: xarray.Dataset) -> np.ndarray:
     return times
 
 
+def baseline_rows(ms: str, field: int, spw: int, scan: int, name1: str, name2: str) -> tuple[np.ndarray, np.ndarray]:
+    """Main-table row numbers and TIME values (MJD seconds) of one baseline in one partition.
+
+    Either antenna order matches. Read with an arcae TaQL query, so the web
+    layer needs no python-casacore. The row array is a writable copy: arcae
+    rejects read-only buffers as row indices.
+    """
+    import arcae
+    from arcae.lib.arrow_tables import Table
+
+    ant = arcae.table(f"{ms}::ANTENNA")
+    try:
+        ids = {str(n): k for k, n in enumerate(ant.getcol("NAME"))}
+    finally:
+        ant.close()
+    a, b = ids[name1], ids[name2]
+
+    sel = Table.from_taql(
+        f"SELECT ROWID() AS ROW, TIME FROM '{ms}' WHERE FIELD_ID=={field} && DATA_DESC_ID=={spw} && "
+        f"SCAN_NUMBER=={scan} && ((ANTENNA1=={a} && ANTENNA2=={b}) || (ANTENNA1=={b} && ANTENNA2=={a}))"
+    )
+    try:
+        if not sel.nrow():
+            return np.zeros(0, np.int64), np.zeros(0)
+        return np.array(sel.getcol("ROW"), dtype=np.int64), np.asarray(sel.getcol("TIME"), dtype=float)
+    finally:
+        sel.close()
+
+
+def slot_index(grid: np.ndarray, times: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Each TIME's slot on the partition's time grid, and whether it landed on one."""
+    if grid.size == 0:
+        return np.zeros(times.shape, int), np.zeros(times.shape, bool)
+    idx = np.clip(np.searchsorted(grid, times), 0, grid.size - 1)
+    # searchsorted gives the insertion point; the nearer neighbour may be below.
+    below = np.clip(idx - 1, 0, grid.size - 1)
+    idx = np.where(np.abs(grid[below] - times) < np.abs(grid[idx] - times), below, idx)
+    return idx, np.abs(grid[idx] - times) < gains_mod.TIME_TOLERANCE
+
+
+def invalidate(ms: str) -> None:
+    """Forget everything cached about ``ms``, so the next read goes to disk.
+
+    For writes made by this process: ``_open`` notices a rewritten MS by its
+    storage files' mtimes, but a write and a read inside one mtime tick would
+    slip past that.
+    """
+    _FINGERPRINTS.pop(ms, None)
+    _open_partition.cache_clear()
+    _cached_plane.cache_clear()
+    data_group.cache_clear()
+    _release_cached_tables()
+
+
 def _version_flags(
     ms: str,
     version: str,
@@ -318,28 +378,11 @@ def _version_flags(
     so the web layer needs no python-casacore.
     """
     import arcae
-    from arcae.lib.arrow_tables import Table
 
     if version not in flag_versions(ms):
         raise KeyError(f"No flag version {version!r} for {ms}. Have: {flag_versions(ms)}")
 
-    ant = arcae.table(f"{ms}::ANTENNA")
-    try:
-        ids = {str(n): k for k, n in enumerate(ant.getcol("NAME"))}
-    finally:
-        ant.close()
-    a, b = ids[name1], ids[name2]
-
-    sel = Table.from_taql(
-        f"SELECT ROWID() AS ROW, TIME FROM '{ms}' WHERE FIELD_ID=={field} && DATA_DESC_ID=={spw} && "
-        f"SCAN_NUMBER=={scan} && ((ANTENNA1=={a} && ANTENNA2=={b}) || (ANTENNA1=={b} && ANTENNA2=={a}))"
-    )
-    try:
-        # A writable copy: arcae rejects read-only buffers as row indices.
-        rows = np.array(sel.getcol("ROW"), dtype=np.int64) if sel.nrow() else np.zeros(0, np.int64)
-        times = sel.getcol("TIME") if sel.nrow() else np.zeros(0)
-    finally:
-        sel.close()
+    rows, times = baseline_rows(ms, field, spw, scan, name1, name2)
 
     nchan = None
     if rows.size:
@@ -355,8 +398,7 @@ def _version_flags(
     if nchan is None:
         raise KeyError(f"No rows for {name1}-{name2} in scan {scan}")
     out = np.ones((grid.size, nchan, len(corr_idx)), dtype=bool)
-    idx = np.clip(np.searchsorted(grid, times), 0, grid.size - 1)
-    hit = np.abs(grid[idx] - times) < gains_mod.TIME_TOLERANCE
+    idx, hit = slot_index(grid, times)
     out[idx[hit]] = flags[hit]
     return out
 
@@ -536,7 +578,80 @@ def waterfall(
         rect=rect,
         length=baseline_length(ms, name1, name2),
         times=ms_times(ds) - MJD_UNIX_OFFSET,
+        plane=plane,
+        freqs=np.asarray(ds.frequency.values, dtype=float),
     )
+
+
+def cached_plane(
+    ms: str,
+    field: int,
+    spw: int,
+    scan: int,
+    name1: str,
+    name2: str,
+    product: str,
+    column: str,
+    model: str = "",
+    gtable: str = "",
+    flagversion: str = "",
+) -> Waterfall:
+    """One baseline's formed complex plane, cached so zooming does not re-read the MS.
+
+    The key includes the MS's on-disk fingerprint and the gain term's mtime,
+    so a rewritten MS or a re-solved gain table is read afresh. ``quantity``
+    and the chunk rectangle are not part of the key. The entry is slimmed to
+    save memory: ``plane`` is complex64 and ``values`` is None, so use
+    ``plane``; ``rect`` is None.
+    """
+    return _cached_plane(
+        ms,
+        field,
+        spw,
+        scan,
+        name1,
+        name2,
+        product,
+        column,
+        model,
+        gtable,
+        flagversion,
+        _fingerprint(ms),
+        _gtable_stamp(gtable),
+    )
+
+
+@lru_cache(maxsize=4)
+def _cached_plane(
+    ms, field, spw, scan, name1, name2, product, column, model, gtable, flagversion, fingerprint, gstamp
+) -> Waterfall:
+    # fingerprint and gstamp only key the cache.
+    wf = waterfall(
+        ms,
+        field,
+        spw,
+        scan,
+        name1,
+        name2,
+        product,
+        column,
+        quantity="amp",
+        rect=None,
+        model=model,
+        gtable=gtable,
+        flagversion=flagversion,
+    )
+    return replace(wf, plane=wf.plane.astype(np.complex64), values=None)
+
+
+def _gtable_stamp(gtable: str) -> int | None:
+    """mtime of a gain term's directory, or None."""
+    if not gtable:
+        return None
+    try:
+        return os.stat(gains_mod.term_path(gtable)).st_mtime_ns
+    except OSError:
+        return None
 
 
 def _describe(column: str, model: str, gtable: str) -> str:

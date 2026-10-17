@@ -215,6 +215,8 @@ def test_routes(chi2_zarr):
     assert "/static/style.css?v=" in index.text
     # Save as PNG renders the page in the browser with the vendored html-to-image.
     assert 'id="save-png"' in index.text
+    # Static files revalidate: ES module imports cannot carry the ?v= version.
+    assert client.get("/static/wf/widget.mjs").headers["cache-control"] == "no-cache"
     assert client.get("/static/html-to-image.js").status_code == 200
 
     heatmap = client.get("/heatmap?field=0&spw=0&scan=1&t=0&f=0&c=XX")
@@ -474,7 +476,7 @@ def test_waterfall_controls(chi2_corrected):
     assert "no longer shows" not in panel.text
     # The column is corrected and has a model subtracted, so WEIGHT is not offered.
     assert '<option value="WEIGHT"' not in panel.text
-    assert "waterfall.png?" in panel.text
+    assert 'data-src="/waterfall.bin?' in panel.text and "<canvas" in panel.text
     assert 'class="keep"' not in panel.text
 
     png = client.get(base.replace("/waterfall?", "/waterfall.png?"))
@@ -489,4 +491,104 @@ def test_waterfall_controls(chi2_corrected):
 
     broken = client.get(base + "&gtable=/nowhere/NET")
     assert "gain table" in broken.text
-    assert "waterfall.png?" not in broken.text
+    assert "waterfall.bin?" not in broken.text
+
+
+@needs_web
+def test_plane_cache_reuses_and_invalidates(chi2_zarr, monkeypatch):
+    """Zooming re-slices a cached plane; new settings or an invalidate re-read the MS."""
+    from surfvis.web import msdata
+
+    ms = chi2_zarr["ms"]["path"]
+    names = chi2_zarr["ms"]["antenna_names"]
+    msdata.invalidate(ms)
+    calls = []
+    real = msdata.waterfall
+    monkeypatch.setattr(msdata, "waterfall", lambda *a, **k: calls.append(1) or real(*a, **k))
+
+    a = msdata.cached_plane(ms, 0, 0, 1, names[0], names[2], "XX", "RESIDUAL")
+    b = msdata.cached_plane(ms, 0, 0, 1, names[0], names[2], "XX", "RESIDUAL")
+    assert a is b and len(calls) == 1
+    assert np.iscomplexobj(a.plane) and a.plane.shape == a.flags.shape == (12, 32)
+    assert a.freqs.shape == (32,) and a.times.shape == (12,)
+
+    msdata.cached_plane(ms, 0, 0, 1, names[0], names[2], "YY", "RESIDUAL")
+    assert len(calls) == 2
+    msdata.invalidate(ms)
+    msdata.cached_plane(ms, 0, 0, 1, names[0], names[2], "XX", "RESIDUAL")
+    assert len(calls) == 3
+
+
+@needs_web
+def test_waterfall_bin(chi2_zarr):
+    """Overview, window, clamping, caps and errors of the canvas data route."""
+    pytest.importorskip("httpx2")
+    from fastapi.testclient import TestClient
+
+    from surfvis.web import msdata
+    from surfvis.web.app import create_app
+    from surfvis.web.planes import decode
+
+    client = TestClient(create_app(chi2_zarr["zarr"]))
+    names = chi2_zarr["ms"]["antenna_names"]
+    base = "/waterfall.bin?field=0&spw=0&scan=1&t=0&f=0&c=XX&p=1&q=5&column=RESIDUAL"
+
+    r = client.get(base + "&meta=true")
+    assert r.status_code == 200 and r.headers["content-type"] == "application/octet-stream"
+    assert r.headers["cache-control"] == "no-store"
+    head, values, flags = decode(r.content)
+    assert (head["nt"], head["nc"], head["tstep"], head["cstep"]) == (12, 32, 1, 1)
+    assert (head["ntime"], head["nchan"]) == (12, 32) and head["rect"] == [0, 6, 0, 16]
+    assert len(head["times"]) == 12 and len(head["freqs"]) == 32
+    assert head["colormap"] == "viridis" and head["vmin"] < head["vmax"]
+    assert head["title"].startswith(f"{names[1]}-{names[5]}")
+    wf = msdata.waterfall(chi2_zarr["ms"]["path"], 0, 0, 1, names[1], names[5], "XX", "RESIDUAL")
+    ok = ~wf.flags
+    np.testing.assert_allclose(values[ok], wf.values[ok], rtol=1e-5)
+
+    small, _, _ = decode(client.get(base + "&max_t=4&max_c=5").content)
+    assert (small["tstep"], small["cstep"], small["nt"], small["nc"]) == (3, 7, 4, 5)
+    assert "times" not in small
+    assert (small["vmin"], small["vmax"]) == (head["vmin"], head["vmax"])  # colours do not move on zoom
+
+    win, wvalues, _ = decode(client.get(base + "&t0=2&t1=5&c0=10&c1=20").content)
+    assert (win["nt"], win["nc"], win["t0"], win["c1"]) == (3, 10, 2, 20)
+    np.testing.assert_array_equal(wvalues, values[2:5, 10:20])
+
+    clamped, _, _ = decode(client.get(base + "&t0=-5&t1=999&max_t=100000").content)
+    assert (clamped["t0"], clamped["t1"], clamped["nt"]) == (0, 12, 12)
+
+    phase, _, _ = decode(client.get(base + "&quantity=phase").content)
+    assert phase["colormap"] == "twilight" and phase["quantity"] == "phase"
+
+    assert client.get(base + "&t0=5&t1=5").status_code == 400
+    assert client.get(base + "&c0=40").status_code == 400
+    assert client.get(base + "&quantity=nope").status_code == 400
+    assert client.get(base.replace("RESIDUAL", "NOPE")).status_code == 404
+
+
+@needs_web
+def test_waterfall_bin_reads_the_ms_once_across_bins(chi2_zarr, monkeypatch):
+    """Clicking another time bin of the same baseline reuses the cached plane."""
+    pytest.importorskip("httpx2")
+    from fastapi.testclient import TestClient
+
+    from surfvis.web import msdata
+    from surfvis.web.app import create_app
+    from surfvis.web.planes import decode
+
+    msdata.invalidate(chi2_zarr["ms"]["path"])
+    calls = []
+    real = msdata.waterfall
+    monkeypatch.setattr(msdata, "waterfall", lambda *a, **k: calls.append(1) or real(*a, **k))
+    client = TestClient(create_app(chi2_zarr["zarr"]))
+    base = "/waterfall.bin?field=0&spw=0&scan=1&f=0&c=XX&p=1&q=5&column=RESIDUAL"
+
+    first, _, _ = decode(client.get(base + "&t=0").content)
+    second, _, _ = decode(client.get(base + "&t=1").content)
+    assert first["rect"] != second["rect"]
+    assert len(calls) == 1
+    cached = msdata.cached_plane(
+        chi2_zarr["ms"]["path"], 0, 0, 1, *chi2_zarr["ms"]["antenna_names"][1:6:4], "XX", "RESIDUAL"
+    )
+    assert cached.plane.dtype == np.complex64 and cached.values is None

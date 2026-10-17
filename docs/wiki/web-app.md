@@ -4,7 +4,7 @@ title: Chi-squared browser
 description: How surfvis serve links surfchi2 output to on-demand baseline waterfalls, the waterfall's correction / Stokes / flag-version controls, and the xarray-ms facts it depends on.
 tags: [web, fastapi, htmx, xarray-ms, zarr]
 timestamp: 2026-10-16
-last_verified_commit: 1ab4f7c
+last_verified_commit: d4a40a0
 ---
 
 # Chi-squared browser
@@ -210,7 +210,7 @@ Three layers, because the slow part is not always an htmx request:
 
 - `#busy`, a bar across the top, is the `hx-indicator` for every htmx request
   (set once on `<body>`, inherited). It also stays lit while any `.plot.loading`
-  exists (`body:has(...)`), since the waterfall PNG is the slow part and its
+  exists (`body:has(...)`), since the waterfall's first block is the slow part and its
   panel is usually below the fold when a cell is clicked.
 - The region a request will replace (`#heatmap`, `#waterfall`, `#selectors`)
   is dimmed between `htmx:beforeRequest` and `htmx:afterRequest`.
@@ -224,6 +224,42 @@ the old one with new HTML after an upgrade: no indicators, an unsized
 histogram.
 
 The selected cell keeps an outline (`.selected`) across heatmap re-renders.
+
+## Manual flagging (write path)
+
+Design: issue #16. Source: `web/flagging.py`, the `/flag*` routes in `app.py`.
+The page has no selection tool yet (next: a canvas waterfall); the routes are
+driven by JSON.
+
+- **Selections are polygons** in the waterfall's (time slot, channel) data
+  coordinates; a rectangle is four vertices. `rasterise` selects a cell when
+  its centre `(i, j)` is inside, by even-odd, with half-open edges, so a
+  rectangle around slots `t0..t1` and channels `c0..c1` has corners at
+  `t - 0.5` / `c + 0.5`. The server's mask is what is written; a client preview
+  must use the same rule.
+- **`POST /flag`** takes `{field, spw, scan, p, q, product, vertices,
+  correlations, dry_run}`. `correlations` is `product` (those the plotted
+  product is formed from: XX and YY for I) or `all`. Rows are found with
+  `msdata.baseline_rows` (arcae TaQL, shared with the flag-version reader) and
+  mapped to slots with `msdata.slot_index`. `FLAG_ROW` is set where a row
+  becomes fully flagged. 403 without `--allow-flagging`; 400 for an empty or
+  unformable selection; 422 for fewer than three vertices.
+- **Backup.** The first write of a session saves FLAG and FLAG_ROW as a CASA
+  flag version, `surfvis_before_<UTC>`, via `Table.from_descriptor` with the
+  source's column descriptors, copied one `DATA_DESC_ID` run at a time in
+  ~256 MB chunks. Keep arcae's `_c_order` hint in the descriptor: without it
+  a tiled FLAG column's fixed cell shape is read transposed and the copy fails.
+  TaQL `SELECT ... GIVING ... AS PLAIN` was rejected: it copies every subtable
+  and labels the result a Measurement Set.
+- **Undo** (`POST /flag/undo`) restores the rows' previous FLAG and FLAG_ROW,
+  last edit first; 409 when empty. The stack is per process; the backup
+  version is the durable fallback. `GET /flag/state` lists the edits.
+- After a write `msdata.invalidate(ms)` drops the caches, so the next
+  waterfall shows the new flags even within one mtime tick. Writes go through
+  a separate arcae handle in the same process as xarray-ms's read handle;
+  casacore shares the underlying table, and the tests confirm reads see writes.
+- `Flagger` serialises apply/undo with a lock: FastAPI runs sync routes in a
+  thread pool.
 
 ## Colour scaling
 
@@ -265,3 +301,50 @@ time, channel and antenna -- so the corrections are checked exactly.
 
 Tests skip cleanly without the `[full,web]` extras; `tests/conftest.py` carries
 the `needs_ms` / `needs_web` markers.
+
+## Canvas waterfall
+
+The page no longer shows `/waterfall.png` (the route is kept, unused by the
+page). `templates/_waterfall.html` renders a `.wf` root with a `<canvas>`;
+`app.js` imports `static/wf/widget.mjs` on `htmx:afterSettle` of `#waterfall`
+and calls `mount(root)`.
+
+- **Route:** `GET /waterfall.bin` takes the PNG route's query plus
+  `t0,t1,c0,c1,max_t,max_c,meta`. The plane is reduced to at most
+  `max_t x max_c` cells (`planes.py`); the first request sets `meta=true` and
+  also returns slot times and channel frequencies.
+- **Wire format:** a JSON header (version, nt, nc, window, tstep, cstep, vmin,
+  vmax, quantity, colormap, title, rect) followed by float32 values and uint8
+  flag fractions; decoded by `static/wf/format.mjs`.
+- **Modules** (`static/wf/`, node-tested via `tests/test_js.py`): `format`,
+  `luts`, `colormap` (paint), `view` (View, Latest, niceTicks, wheelFactor), `widget`.
+- **Interactions:** wheel zooms about the cursor, shift-drag or middle-drag
+  pans, `0` or Reset view resets, hover reads time, frequency, value and flag
+  percentage. After 150 ms of rest the visible window is refetched at screen
+  resolution; `Latest` discards stale responses. "show flags" repaints locally.
+  Plain left-drag and click are unbound, reserved for flagging polygons.
+  Layers added through `api.addLayer(fn)` draw clipped to the plot area.
+- **Cache:** static files are served `Cache-Control: no-cache`
+  (`RevalidatedStaticFiles`), because imports between ES modules cannot carry
+  the `?v=` digest.
+- Save as PNG captures the canvas too (a canvas is rasterised by html-to-image).
+- **Wheel units:** `wheelFactor` normalises `deltaY` by `deltaMode` (Firefox
+  reports lines, not pixels) and clamps each event, so zoom feels alike across
+  browsers. The widget aborts a superseded fetch, skips a refetch when the
+  block on screen was fetched with the same window and bin counts (so the first
+  load makes one request), and drops a drag when pointer capture is lost.
+
+### Plane cache
+
+`msdata.cached_plane` keeps the last four formed baseline planes (an `lru_cache`)
+so zooming and panning re-slice memory instead of re-reading the MS. The key is
+the MS fingerprint (storage mtimes), the gain term's mtime, and the baseline and
+settings (field, spw, scan, antennas, product, column, model, gtable, flag
+version). It is **not** keyed on quantity or on the chunk rectangle: another
+time or frequency bin of the same baseline hits the cache, and the route puts the
+chunk rectangle into the header itself. `invalidate(ms)` clears it (the flagger
+calls it after a write). An entry holds the plane as complex64 and the flags as
+bool, `values` is dropped: about 9 bytes per cell, so 450 x 32768 is ~130 MB and
+four entries ~0.5 GB. Colour limits are cached per quantity on the entry
+(`Waterfall.limits`), so colours do not move on zoom and are not recomputed.
+`planes._binned` skips its padded copy when the window divides evenly.
